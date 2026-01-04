@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { CrystalIcon, CrystalBadge } from '@/components/CrystalIcon';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
+import { WinModal } from '@/components/WinModal';
 import { useGameStore, PRIZES, Prize } from '@/store/gameStore';
 import { useTelegram } from '@/hooks/useTelegram';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,8 @@ export const PlayPage = () => {
   const [selectedBet, setSelectedBet] = useState(25);
   const [isSpinning, setIsSpinning] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(1);
+  const [showWinModal, setShowWinModal] = useState(false);
+  const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const currentBalance = isDemoMode ? demoCrystals : crystals;
@@ -128,6 +131,12 @@ export const PlayPage = () => {
                 description: `Won ${winningPrize.name}`,
               });
             }
+            
+            // Show win modal with delay for dramatic effect
+            setWonPrize(winningPrize);
+            setTimeout(() => {
+              setShowWinModal(true);
+            }, 300);
           } else {
             addHistoryEntry({
               type: 'loss',
@@ -141,6 +150,11 @@ export const PlayPage = () => {
       animate();
     }
   }, [isSpinning, currentBalance, selectedBet, deductCrystals, hapticFeedback, addCrystals, addGift, addHistoryEntry, incrementGamesPlayed]);
+
+  const closeWinModal = () => {
+    setShowWinModal(false);
+    setWonPrize(null);
+  };
 
   return (
     <div className="flex flex-col gap-4 pb-24 animate-fade-in">
@@ -261,6 +275,13 @@ export const PlayPage = () => {
           ))}
         </div>
       </div>
+
+      {/* Win Modal */}
+      <WinModal 
+        isOpen={showWinModal} 
+        onClose={closeWinModal} 
+        prize={wonPrize} 
+      />
     </div>
   );
 };
