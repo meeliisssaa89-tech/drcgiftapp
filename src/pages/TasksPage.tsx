@@ -3,7 +3,7 @@ import { Clock } from 'lucide-react';
 import { CrystalBadge } from '@/components/CrystalIcon';
 import { ProgressBar } from '@/components/ProgressBar';
 import { TASKS, Task } from '@/store/gameStore';
-import { useGameStore } from '@/store/gameStore';
+import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
 import { cn } from '@/lib/utils';
 
@@ -26,7 +26,7 @@ const formatTimer = (seconds: number): string => {
 export const TasksPage = () => {
   const [activeTab, setActiveTab] = useState<TaskTab>('all');
   const [tasks, setTasks] = useState<Task[]>(TASKS);
-  const { addCrystals } = useGameStore();
+  const { addCrystals } = useProfile();
   const { hapticFeedback } = useTelegram();
 
   // Timer countdown effect
@@ -50,11 +50,11 @@ export const TasksPage = () => {
 
   const filteredTasks = getFilteredTasks();
 
-  const handleClaimTask = (taskId: string) => {
+  const handleClaimTask = async (taskId: string) => {
     const task = tasks.find((t) => t.id === taskId);
     if (task && task.status === 'claimable') {
       hapticFeedback('success');
-      addCrystals(task.reward);
+      await addCrystals(task.reward);
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId ? { ...t, status: 'completed' } : t

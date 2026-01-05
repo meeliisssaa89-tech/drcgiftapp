@@ -3,6 +3,7 @@ import { CrystalIcon, CrystalBadge } from '@/components/CrystalIcon';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { WinModal } from '@/components/WinModal';
 import { useGameStore, PRIZES, Prize } from '@/store/gameStore';
+import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
 import { cn } from '@/lib/utils';
 
@@ -20,20 +21,16 @@ const SPIN_ITEMS = [
 ];
 
 export const PlayPage = () => {
-  const { user } = useTelegram();
+  const { user, hapticFeedback } = useTelegram();
+  const { profile, deductCrystals, addCrystals, recordGame, isLoading } = useProfile();
   const { 
-    crystals, 
     isDemoMode, 
     demoCrystals, 
-    level,
     setDemoMode, 
-    deductCrystals, 
-    addCrystals,
+    addDemoCrystals,
+    deductDemoCrystals,
     addGift,
-    addHistoryEntry,
-    incrementGamesPlayed 
   } = useGameStore();
-  const { hapticFeedback } = useTelegram();
   
   const [selectedBet, setSelectedBet] = useState(25);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -42,6 +39,8 @@ export const PlayPage = () => {
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const crystals = profile?.crystals ?? 0;
+  const level = profile?.level ?? 1;
   const currentBalance = isDemoMode ? demoCrystals : crystals;
   const displayName = user ? `${user.first_name} ${user.last_name || ''}`.trim() : 'User';
   const isPremium = user?.is_premium;
@@ -51,7 +50,7 @@ export const PlayPage = () => {
     setSelectedBet(amount);
   };
 
-  const spinWheel = useCallback(() => {
+  const spinWheel = useCallback(async () => {
     if (isSpinning) return;
     
     if (currentBalance < selectedBet) {
@@ -59,14 +58,22 @@ export const PlayPage = () => {
       return;
     }
 
-    if (!deductCrystals(selectedBet)) {
-      hapticFeedback('error');
-      return;
+    // Deduct crystals
+    if (isDemoMode) {
+      if (!deductDemoCrystals(selectedBet)) {
+        hapticFeedback('error');
+        return;
+      }
+    } else {
+      const success = await deductCrystals(selectedBet);
+      if (!success) {
+        hapticFeedback('error');
+        return;
+      }
     }
 
     hapticFeedback('medium');
     setIsSpinning(true);
-    incrementGamesPlayed();
 
     // Animate the horizontal scroll
     const scrollContainer = scrollRef.current;
@@ -116,20 +123,30 @@ export const PlayPage = () => {
           
           if (winningPrize && winningPrize.value > 0) {
             hapticFeedback('success');
-            if (winningPrize.type === 'crystals') {
-              addCrystals(winningPrize.value);
-              addHistoryEntry({
-                type: 'win',
-                amount: winningPrize.value,
-                description: `Won ${winningPrize.value} crystals`,
-              });
+            
+            if (isDemoMode) {
+              // Demo mode - local only
+              if (winningPrize.type === 'crystals') {
+                addDemoCrystals(winningPrize.value);
+              } else {
+                addGift(winningPrize);
+              }
             } else {
-              addGift(winningPrize);
-              addHistoryEntry({
-                type: 'win',
-                amount: winningPrize.value,
-                description: `Won ${winningPrize.name}`,
-              });
+              // Real mode - persist to database
+              if (winningPrize.type === 'crystals') {
+                addCrystals(winningPrize.value);
+              } else {
+                addGift(winningPrize);
+              }
+              
+              // Record game in history
+              recordGame(
+                selectedBet,
+                winningPrize.value,
+                winningPrize.emoji,
+                winningPrize.name,
+                false
+              );
             }
             
             // Show win modal with delay for dramatic effect
@@ -138,23 +155,38 @@ export const PlayPage = () => {
               setShowWinModal(true);
             }, 300);
           } else {
-            addHistoryEntry({
-              type: 'loss',
-              amount: selectedBet,
-              description: `Spin - no win`,
-            });
+            // No win - record in history
+            if (!isDemoMode) {
+              recordGame(selectedBet, 0, '💨', 'No win', false);
+            }
           }
         }
       };
       
       animate();
     }
-  }, [isSpinning, currentBalance, selectedBet, deductCrystals, hapticFeedback, addCrystals, addGift, addHistoryEntry, incrementGamesPlayed]);
+  }, [isSpinning, currentBalance, selectedBet, isDemoMode, deductCrystals, deductDemoCrystals, hapticFeedback, addCrystals, addDemoCrystals, addGift, recordGame]);
 
   const closeWinModal = () => {
     setShowWinModal(false);
     setWonPrize(null);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
+        <div className="card-telegram animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-secondary" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-secondary rounded w-24" />
+              <div className="h-3 bg-secondary rounded w-16" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-24 animate-fade-in">

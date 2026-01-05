@@ -1,7 +1,8 @@
 import { Settings } from 'lucide-react';
 import { CrystalIcon } from '@/components/CrystalIcon';
-import { useGameStore } from '@/store/gameStore';
+import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
+import { useGameStore } from '@/store/gameStore';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +10,8 @@ type ProfileTab = 'gifts' | 'friends' | 'history';
 
 export const ProfilePage = () => {
   const { user } = useTelegram();
-  const { crystals, level, gifts, friends, history } = useGameStore();
+  const { profile, gameHistory, referrals, isLoading } = useProfile();
+  const { gifts } = useGameStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('gifts');
 
   const tabs: { id: ProfileTab; label: string }[] = [
@@ -20,6 +22,24 @@ export const ProfilePage = () => {
 
   const displayName = user ? `${user.first_name} ${user.last_name || ''}`.trim() : 'User';
   const isPremium = user?.is_premium;
+  const crystals = profile?.crystals ?? 0;
+  const level = profile?.level ?? 1;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
+        <div className="card-telegram animate-pulse">
+          <div className="flex items-start gap-3">
+            <div className="w-[72px] h-[72px] rounded-full bg-secondary" />
+            <div className="flex-1 space-y-2">
+              <div className="h-5 bg-secondary rounded w-32" />
+              <div className="h-8 bg-secondary rounded w-20" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 pb-24 animate-fade-in">
@@ -113,33 +133,55 @@ export const ProfilePage = () => {
           </div>
         )}
 
-        {activeTab === 'friends' && friends.length === 0 && (
+        {activeTab === 'friends' && referrals.length === 0 && (
           <div className="text-center">
             <div className="text-5xl mb-3">👥</div>
             <p className="text-muted-foreground text-sm">No friends invited yet</p>
           </div>
         )}
 
-        {activeTab === 'history' && history.length === 0 && (
+        {activeTab === 'friends' && referrals.length > 0 && (
+          <div className="w-full space-y-2">
+            {referrals.map((referral) => (
+              <div key={referral.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                <div>
+                  <p className="font-medium text-sm">Friend #{referral.referred_id.slice(0, 8)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Joined {new Date(referral.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-primary">
+                  <span>+{referral.reward_earned}</span>
+                  <CrystalIcon size={14} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'history' && gameHistory.length === 0 && (
           <div className="text-center">
             <div className="text-5xl mb-3">📋</div>
             <p className="text-muted-foreground text-sm">No history yet</p>
           </div>
         )}
 
-        {activeTab === 'history' && history.length > 0 && (
+        {activeTab === 'history' && gameHistory.length > 0 && (
           <div className="w-full space-y-2">
-            {history.slice(0, 10).map((entry) => (
+            {gameHistory.slice(0, 10).map((entry) => (
               <div key={entry.id} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <div>
-                  <p className="font-medium text-sm">{entry.description}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(entry.timestamp).toLocaleString()}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{entry.prize_emoji}</span>
+                  <div>
+                    <p className="font-medium text-sm">{entry.prize_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Bet: {entry.bet_amount} • {new Date(entry.created_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 text-sm">
-                  <span className={entry.type === 'loss' ? 'text-destructive' : 'text-primary'}>
-                    {entry.type === 'loss' ? '-' : '+'}{entry.amount}
+                  <span className={entry.prize_amount > 0 ? 'text-primary' : 'text-destructive'}>
+                    {entry.prize_amount > 0 ? '+' : ''}{entry.prize_amount}
                   </span>
                   <CrystalIcon size={14} />
                 </div>
