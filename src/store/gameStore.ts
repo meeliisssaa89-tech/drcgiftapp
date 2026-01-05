@@ -24,11 +24,12 @@ export interface Task {
 }
 
 export interface Friend {
-  id: number;
+  id: string;
   name: string;
   avatar?: string;
   crystals: number;
   level: number;
+  telegram_id: number;
 }
 
 export interface HistoryEntry {
@@ -40,7 +41,7 @@ export interface HistoryEntry {
 }
 
 export interface LeaderEntry {
-  id: number;
+  id: string;
   name: string;
   avatar?: string;
   country: string;
@@ -48,86 +49,51 @@ export interface LeaderEntry {
   games: number;
   gifts: number;
   rank: number;
+  telegram_id: number;
 }
 
 interface GameState {
-  // User state
-  crystals: number;
-  level: number;
-  gamesPlayed: number;
-  
-  // Demo mode
+  // Demo mode (local state only)
   isDemoMode: boolean;
   demoCrystals: number;
   
-  // Collections
+  // Local gifts collection (could be synced later)
   gifts: Prize[];
-  friends: Friend[];
-  history: HistoryEntry[];
   
   // Actions
-  setCrystals: (amount: number) => void;
-  addCrystals: (amount: number) => void;
-  deductCrystals: (amount: number) => boolean;
   setDemoMode: (isDemo: boolean) => void;
+  addDemoCrystals: (amount: number) => void;
+  deductDemoCrystals: (amount: number) => boolean;
   addGift: (gift: Prize) => void;
-  addHistoryEntry: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
-  incrementGamesPlayed: () => void;
+  resetDemoCrystals: () => void;
 }
 
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
-      crystals: 13,
-      level: 1,
-      gamesPlayed: 0,
       isDemoMode: false,
       demoCrystals: 1000,
       gifts: [],
-      friends: [],
-      history: [],
 
-      setCrystals: (amount) => set({ crystals: amount }),
+      setDemoMode: (isDemo) => set({ isDemoMode: isDemo }),
       
-      addCrystals: (amount) => {
-        const { isDemoMode, demoCrystals, crystals } = get();
-        if (isDemoMode) {
-          set({ demoCrystals: demoCrystals + amount });
-        } else {
-          set({ crystals: crystals + amount });
-        }
+      addDemoCrystals: (amount) => {
+        const { demoCrystals } = get();
+        set({ demoCrystals: demoCrystals + amount });
       },
       
-      deductCrystals: (amount) => {
-        const { isDemoMode, demoCrystals, crystals } = get();
-        if (isDemoMode) {
-          if (demoCrystals >= amount) {
-            set({ demoCrystals: demoCrystals - amount });
-            return true;
-          }
-        } else {
-          if (crystals >= amount) {
-            set({ crystals: crystals - amount });
-            return true;
-          }
+      deductDemoCrystals: (amount) => {
+        const { demoCrystals } = get();
+        if (demoCrystals >= amount) {
+          set({ demoCrystals: demoCrystals - amount });
+          return true;
         }
         return false;
       },
       
-      setDemoMode: (isDemo) => set({ isDemoMode: isDemo }),
-      
       addGift: (gift) => set((state) => ({ gifts: [...state.gifts, gift] })),
       
-      addHistoryEntry: (entry) => set((state) => ({
-        history: [
-          { ...entry, id: Date.now().toString(), timestamp: Date.now() },
-          ...state.history,
-        ].slice(0, 50), // Keep last 50 entries
-      })),
-      
-      incrementGamesPlayed: () => set((state) => ({ 
-        gamesPlayed: state.gamesPlayed + 1 
-      })),
+      resetDemoCrystals: () => set({ demoCrystals: 1000 }),
     }),
     {
       name: 'telegram-mini-app-storage',
@@ -209,12 +175,12 @@ export const TASKS: Task[] = [
   },
 ];
 
-// Mock leaderboard data
+// Mock leaderboard data (for fallback when DB is empty)
 export const LEADERBOARD: LeaderEntry[] = [
-  { id: 1, name: 'Honeybee', avatar: '', country: '🇳🇬', crystals: 15050, games: 245, gifts: 32, rank: 1 },
-  { id: 2, name: 'Jey', avatar: '', country: '🇳🇬', crystals: 1006, games: 156, gifts: 18, rank: 2 },
-  { id: 3, name: 'Денис Пожарский', avatar: '', country: '🇦🇹', crystals: 600, games: 89, gifts: 12, rank: 3 },
-  { id: 4, name: 'MJ', avatar: '', country: '🇪🇬', crystals: 574, games: 67, gifts: 8, rank: 4 },
-  { id: 5, name: 'Андрей', avatar: '', country: '🇷🇺', crystals: 500, games: 54, gifts: 6, rank: 5 },
-  { id: 6, name: 'Гг', avatar: '', country: '🌍', crystals: 491, games: 45, gifts: 5, rank: 6 },
+  { id: '1', name: 'Honeybee', avatar: '', country: '🇳🇬', crystals: 15050, games: 245, gifts: 32, rank: 1, telegram_id: 1 },
+  { id: '2', name: 'Jey', avatar: '', country: '🇳🇬', crystals: 1006, games: 156, gifts: 18, rank: 2, telegram_id: 2 },
+  { id: '3', name: 'Денис Пожарский', avatar: '', country: '🇦🇹', crystals: 600, games: 89, gifts: 12, rank: 3, telegram_id: 3 },
+  { id: '4', name: 'MJ', avatar: '', country: '🇪🇬', crystals: 574, games: 67, gifts: 8, rank: 4, telegram_id: 4 },
+  { id: '5', name: 'Андрей', avatar: '', country: '🇷🇺', crystals: 500, games: 54, gifts: 6, rank: 5, telegram_id: 5 },
+  { id: '6', name: 'Гг', avatar: '', country: '🌍', crystals: 491, games: 45, gifts: 5, rank: 6, telegram_id: 6 },
 ];

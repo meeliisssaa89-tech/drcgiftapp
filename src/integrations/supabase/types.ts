@@ -14,7 +14,183 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      game_history: {
+        Row: {
+          bet_amount: number
+          created_at: string
+          id: string
+          is_demo: boolean
+          prize_amount: number
+          prize_emoji: string
+          prize_name: string
+          profile_id: string
+        }
+        Insert: {
+          bet_amount: number
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          prize_amount: number
+          prize_emoji: string
+          prize_name: string
+          profile_id: string
+        }
+        Update: {
+          bet_amount?: number
+          created_at?: string
+          id?: string
+          is_demo?: boolean
+          prize_amount?: number
+          prize_emoji?: string
+          prize_name?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_history_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          crystals: number
+          experience: number
+          first_name: string | null
+          id: string
+          last_name: string | null
+          level: number
+          referred_by: string | null
+          telegram_id: number
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          crystals?: number
+          experience?: number
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          level?: number
+          referred_by?: string | null
+          telegram_id: number
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          crystals?: number
+          experience?: number
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          level?: number
+          referred_by?: string | null
+          telegram_id?: number
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          id: string
+          referred_id: string
+          referrer_id: string
+          reward_earned: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          referred_id: string
+          referrer_id: string
+          reward_earned?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          referred_id?: string
+          referrer_id?: string
+          reward_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks_progress: {
+        Row: {
+          claimed: boolean
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          id: string
+          profile_id: string
+          progress: number
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          claimed?: boolean
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          profile_id: string
+          progress?: number
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          claimed?: boolean
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          profile_id?: string
+          progress?: number
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
