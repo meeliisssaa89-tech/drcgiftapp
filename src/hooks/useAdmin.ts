@@ -55,33 +55,40 @@ export const useAdmin = () => {
 
   // Initialize auth
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setTimeout(() => {
-            checkAdminStatus(session.user.id).then(setIsAdmin);
-          }, 0);
-        } else {
-          setIsAdmin(false);
-        }
-        setIsLoading(false);
-      }
-    );
+    let isMounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkAdminStatus(session.user.id).then(setIsAdmin);
+    const handleSession = async (nextSession: Session | null) => {
+      if (!isMounted) return;
+
+      setIsLoading(true);
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (nextSession?.user) {
+        const admin = await checkAdminStatus(nextSession.user.id);
+        if (!isMounted) return;
+        setIsAdmin(admin);
+      } else {
+        setIsAdmin(false);
       }
-      setIsLoading(false);
+
+      if (isMounted) setIsLoading(false);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      void handleSession(nextSession);
     });
 
-    return () => subscription.unsubscribe();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      void handleSession(session);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [checkAdminStatus]);
 
   // Fetch admin stats
