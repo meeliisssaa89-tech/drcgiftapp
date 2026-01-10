@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Lock, Mail } from 'lucide-react';
+import { Lock, Mail, UserPlus } from 'lucide-react';
 
 export const AdminLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAdmin();
+  const [isSignUp, setIsSignUp] = useState(false);
+  const { signIn, signUp } = useAdmin();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,20 +23,37 @@ export const AdminLogin = () => {
       return;
     }
 
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
-      
-      if (error) {
-        toast.error(error.message || 'Invalid credentials');
-        return;
-      }
+      if (isSignUp) {
+        const { error } = await signUp(email, password);
+        
+        if (error) {
+          toast.error(error.message || 'Failed to create account');
+          return;
+        }
 
-      toast.success('Logged in successfully');
-      navigate('/admin');
+        toast.success('Account created! You can now sign in.');
+        setIsSignUp(false);
+      } else {
+        const { error } = await signIn(email, password);
+        
+        if (error) {
+          toast.error(error.message || 'Invalid credentials');
+          return;
+        }
+
+        toast.success('Logged in successfully');
+        navigate('/admin');
+      }
     } catch (err) {
-      toast.error('An error occurred during login');
+      toast.error('An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -47,10 +65,16 @@ export const AdminLogin = () => {
         <div className="bg-card rounded-2xl p-8 shadow-lg border border-border">
           <div className="text-center mb-8">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-8 h-8 text-primary" />
+              {isSignUp ? (
+                <UserPlus className="w-8 h-8 text-primary" />
+              ) : (
+                <Lock className="w-8 h-8 text-primary" />
+              )}
             </div>
             <h1 className="text-2xl font-bold">Admin Panel</h1>
-            <p className="text-muted-foreground mt-2">Sign in to access the dashboard</p>
+            <p className="text-muted-foreground mt-2">
+              {isSignUp ? 'Create your admin account' : 'Sign in to access the dashboard'}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -61,7 +85,7 @@ export const AdminLogin = () => {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@example.com"
+                  placeholder="admin@crystalspin.app"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -91,12 +115,28 @@ export const AdminLogin = () => {
               className="w-full" 
               disabled={isLoading}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading 
+                ? (isSignUp ? 'Creating account...' : 'Signing in...') 
+                : (isSignUp ? 'Create Account' : 'Sign In')
+              }
             </Button>
           </form>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Only authorized administrators can access this panel
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="text-sm text-primary hover:underline"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            {isSignUp 
+              ? 'Use admin@crystalspin.app to get admin access'
+              : 'Only authorized administrators can access this panel'
+            }
           </p>
         </div>
       </div>
