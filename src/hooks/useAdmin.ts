@@ -169,6 +169,12 @@ export const useAdmin = () => {
     return { error };
   }, []);
 
+  // Sign up
+  const signUp = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email, password });
+    return { error };
+  }, []);
+
   // Sign out
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
@@ -193,6 +199,7 @@ export const useAdmin = () => {
     stats,
     users,
     signIn,
+    signUp,
     signOut,
     fetchStats,
     fetchUsers,
