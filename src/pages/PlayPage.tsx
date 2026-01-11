@@ -1,24 +1,29 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { CrystalIcon, CrystalBadge } from '@/components/CrystalIcon';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { WinModal } from '@/components/WinModal';
 import { useGameStore, PRIZES, Prize } from '@/store/gameStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
+import { useSpinEngine } from '@/hooks/useSpinEngine';
 import { cn } from '@/lib/utils';
 
 const BET_AMOUNTS = [25, 50, 100, 250];
 
-// Spin items for the horizontal carousel
+// Spin items for the horizontal carousel - must match PRIZES order for alignment
 const SPIN_ITEMS = [
-  { emoji: '🧸', value: 75, label: 'Teddy' },
-  { emoji: '💎', value: 250, label: 'Crystals' },
-  { emoji: '🍾', value: 50, label: 'Champagne' },
-  { emoji: '🏆', value: 100, label: 'Trophy' },
-  { emoji: '💍', value: 100, label: 'Ring' },
-  { emoji: '⭐', value: 10, label: 'Star' },
+  { emoji: '💎', value: 500, label: 'Diamond' },
+  { emoji: '🏆', value: 250, label: 'Trophy' },
+  { emoji: '🎁', value: 100, label: 'Gift' },
+  { emoji: '⭐', value: 50, label: 'Star' },
   { emoji: '🌹', value: 25, label: 'Flower' },
+  { emoji: '🍀', value: 10, label: 'Clover' },
+  { emoji: '💨', value: 0, label: 'Nothing' },
 ];
+
+const ITEM_WIDTH = 120;
+const ITEM_GAP = 12;
+const TOTAL_ITEM_WIDTH = ITEM_WIDTH + ITEM_GAP;
 
 export const PlayPage = () => {
   const { user, hapticFeedback } = useTelegram();
@@ -33,11 +38,13 @@ export const PlayPage = () => {
   } = useGameStore();
   
   const [selectedBet, setSelectedBet] = useState(25);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(1);
   const [showWinModal, setShowWinModal] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  const { spinState, position, highlightedIndex, startSpin, isLocked } = useSpinEngine({
+    itemWidth: TOTAL_ITEM_WIDTH,
+    itemCount: SPIN_ITEMS.length,
+  });
 
   const crystals = profile?.crystals ?? 0;
   const level = profile?.level ?? 1;
@@ -46,19 +53,20 @@ export const PlayPage = () => {
   const isPremium = user?.is_premium;
 
   const handleBetSelect = (amount: number) => {
+    if (isLocked) return;
     hapticFeedback('selection');
     setSelectedBet(amount);
   };
 
-  const spinWheel = useCallback(async () => {
-    if (isSpinning) return;
+  const handleSpin = useCallback(async () => {
+    if (isLocked) return;
     
     if (currentBalance < selectedBet) {
       hapticFeedback('error');
       return;
     }
 
-    // Deduct crystals
+    // Deduct crystals BEFORE spin
     if (isDemoMode) {
       if (!deductDemoCrystals(selectedBet)) {
         hapticFeedback('error');
@@ -73,104 +81,76 @@ export const PlayPage = () => {
     }
 
     hapticFeedback('medium');
-    setIsSpinning(true);
-
-    // Animate the horizontal scroll
-    const scrollContainer = scrollRef.current;
-    if (scrollContainer) {
-      const itemWidth = 132; // card width + gap
-      const totalItems = SPIN_ITEMS.length;
-      const spinDuration = 3000;
-      const startTime = Date.now();
-      const startScroll = scrollContainer.scrollLeft;
-      
-      // Random final position
-      const finalSpins = 3 + Math.random() * 2;
-      const targetScroll = startScroll + itemWidth * totalItems * finalSpins;
-      
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / spinDuration, 1);
+    
+    // Start spin and get precalculated prize
+    const winningPrize = startSpin();
+    
+    // Wait for spin to complete (acceleration + deceleration + small buffer)
+    const spinDuration = 800 + 2000 + 200;
+    
+    setTimeout(() => {
+      if (winningPrize && winningPrize.value > 0) {
+        hapticFeedback('success');
         
-        // Easing function for deceleration
-        const easeOut = 1 - Math.pow(1 - progress, 4);
-        
-        const currentScroll = startScroll + (targetScroll - startScroll) * easeOut;
-        scrollContainer.scrollLeft = currentScroll;
-        
-        // Update highlighted index
-        const centerOffset = scrollContainer.clientWidth / 2;
-        const centerIndex = Math.floor((currentScroll + centerOffset) / itemWidth) % totalItems;
-        setHighlightedIndex(centerIndex);
-        
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          // Determine winner
-          const random = Math.random() * 100;
-          let cumulative = 0;
-          let winningPrize: Prize | null = null;
-          
-          for (const prize of PRIZES) {
-            cumulative += prize.probability;
-            if (random <= cumulative) {
-              winningPrize = prize;
-              break;
-            }
-          }
-          
-          setIsSpinning(false);
-          
-          if (winningPrize && winningPrize.value > 0) {
-            hapticFeedback('success');
-            
-            if (isDemoMode) {
-              // Demo mode - local only
-              if (winningPrize.type === 'crystals') {
-                addDemoCrystals(winningPrize.value);
-              } else {
-                addGift(winningPrize);
-              }
-            } else {
-              // Real mode - persist to database
-              if (winningPrize.type === 'crystals') {
-                addCrystals(winningPrize.value);
-              } else {
-                addGift(winningPrize);
-              }
-              
-              // Record game in history
-              recordGame(
-                selectedBet,
-                winningPrize.value,
-                winningPrize.emoji,
-                winningPrize.name,
-                false
-              );
-            }
-            
-            // Show win modal with delay for dramatic effect
-            setWonPrize(winningPrize);
-            setTimeout(() => {
-              setShowWinModal(true);
-            }, 300);
+        if (isDemoMode) {
+          if (winningPrize.type === 'crystals') {
+            addDemoCrystals(winningPrize.value);
           } else {
-            // No win - record in history
-            if (!isDemoMode) {
-              recordGame(selectedBet, 0, '💨', 'No win', false);
-            }
+            addGift(winningPrize);
           }
+        } else {
+          if (winningPrize.type === 'crystals') {
+            addCrystals(winningPrize.value);
+          } else {
+            addGift(winningPrize);
+          }
+          
+          recordGame(
+            selectedBet,
+            winningPrize.value,
+            winningPrize.emoji,
+            winningPrize.name,
+            false
+          );
         }
-      };
-      
-      animate();
-    }
-  }, [isSpinning, currentBalance, selectedBet, isDemoMode, deductCrystals, deductDemoCrystals, hapticFeedback, addCrystals, addDemoCrystals, addGift, recordGame]);
+        
+        setWonPrize(winningPrize);
+        setTimeout(() => setShowWinModal(true), 300);
+      } else {
+        if (!isDemoMode) {
+          recordGame(selectedBet, 0, '💨', 'No win', false);
+        }
+      }
+    }, spinDuration);
+  }, [isLocked, currentBalance, selectedBet, isDemoMode, deductCrystals, deductDemoCrystals, hapticFeedback, startSpin, addCrystals, addDemoCrystals, addGift, recordGame]);
 
   const closeWinModal = () => {
     setShowWinModal(false);
     setWonPrize(null);
   };
+
+  // Generate carousel items (3x for seamless looping)
+  const carouselItems = useMemo(() => {
+    const items = [];
+    for (let i = 0; i < 3; i++) {
+      SPIN_ITEMS.forEach((item, idx) => {
+        items.push({ ...item, key: `${i}-${idx}`, index: idx });
+      });
+    }
+    return items;
+  }, []);
+
+  // Calculate transform based on position
+  const carouselStyle = useMemo(() => {
+    // Center the carousel - offset by half the viewport
+    const viewportOffset = 150; // Approximate half of container width
+    const translateX = -position + viewportOffset - TOTAL_ITEM_WIDTH / 2;
+    
+    return {
+      transform: `translateX(${translateX}px)`,
+      transition: spinState === 'stopped' ? 'none' : 'none', // Frame-based, no CSS transition
+    };
+  }, [position, spinState]);
 
   if (isLoading) {
     return (
@@ -216,17 +196,19 @@ export const PlayPage = () => {
         </div>
       </div>
 
-      {/* Bet Selection - 4 equal buttons */}
+      {/* Bet Selection */}
       <div className="grid grid-cols-4 gap-2">
         {BET_AMOUNTS.map((amount) => (
           <button
             key={amount}
             onClick={() => handleBetSelect(amount)}
+            disabled={isLocked}
             className={cn(
               "rounded-xl py-2.5 font-medium transition-all duration-200 flex items-center justify-center gap-1",
               selectedBet === amount 
                 ? "bg-primary/20 border-2 border-primary text-primary" 
-                : "bg-secondary border-2 border-transparent text-muted-foreground"
+                : "bg-secondary border-2 border-transparent text-muted-foreground",
+              isLocked && "opacity-50 cursor-not-allowed"
             )}
           >
             <span className="font-semibold">{amount}</span>
@@ -235,49 +217,77 @@ export const PlayPage = () => {
         ))}
       </div>
 
-      {/* Spin Carousel */}
-      <div className="relative">
+      {/* Spin Carousel - Frame-based animation */}
+      <div className="relative overflow-hidden rounded-2xl bg-card/50 py-4">
         {/* Center indicator line */}
-        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-primary z-10 -translate-x-1/2" />
+        <div className="absolute left-1/2 top-0 bottom-0 w-1 bg-primary z-20 -translate-x-1/2 shadow-[0_0_10px_rgba(var(--primary-rgb),0.5)]" />
         
+        {/* Gradient overlays for fade effect */}
+        <div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-card/90 to-transparent z-10 pointer-events-none" />
+        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-card/90 to-transparent z-10 pointer-events-none" />
+        
+        {/* Carousel track */}
         <div 
-          ref={scrollRef}
-          className="flex gap-3 overflow-x-auto scrollbar-hide py-2 snap-x snap-mandatory"
+          className="flex gap-3 will-change-transform"
+          style={carouselStyle}
         >
-          {/* Duplicate items for infinite scroll effect */}
-          {[...SPIN_ITEMS, ...SPIN_ITEMS, ...SPIN_ITEMS].map((item, index) => {
-            const actualIndex = index % SPIN_ITEMS.length;
+          {carouselItems.map((item) => {
+            const isHighlighted = item.index === highlightedIndex && (spinState === 'accelerating' || spinState === 'decelerating');
+            const isWinner = item.index === highlightedIndex && spinState === 'stopped';
+            
             return (
               <div
-                key={index}
+                key={item.key}
                 className={cn(
-                  "flex-shrink-0 rounded-2xl flex flex-col items-center justify-center transition-all duration-200 snap-center",
-                  "w-[120px] h-[150px] bg-card",
-                  highlightedIndex === actualIndex && isSpinning && "ring-2 ring-primary scale-105"
+                  "flex-shrink-0 rounded-2xl flex flex-col items-center justify-center transition-all duration-150",
+                  "bg-secondary/80 backdrop-blur-sm",
+                  isHighlighted && "ring-2 ring-primary/50 scale-[1.02]",
+                  isWinner && "ring-4 ring-primary scale-110 bg-primary/20 shadow-lg shadow-primary/30"
                 )}
+                style={{ width: ITEM_WIDTH, height: 150 }}
               >
-                <span className="text-5xl mb-2">{item.emoji}</span>
+                <span className={cn(
+                  "text-5xl mb-2 transition-transform duration-150",
+                  isWinner && "animate-bounce"
+                )}>
+                  {item.emoji}
+                </span>
                 <CrystalBadge amount={item.value} size="sm" />
               </div>
             );
           })}
+        </div>
+        
+        {/* Spin state indicator */}
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+          {spinState === 'preview' && 'Ready'}
+          {spinState === 'accelerating' && 'Spinning...'}
+          {spinState === 'decelerating' && 'Slowing...'}
+          {spinState === 'stopped' && '🎉'}
         </div>
       </div>
 
       {/* Spin Button & Demo Toggle */}
       <div className="flex gap-3">
         <button
-          onClick={spinWheel}
-          disabled={isSpinning || currentBalance < selectedBet}
+          onClick={handleSpin}
+          disabled={isLocked || currentBalance < selectedBet}
           className={cn(
-            "flex-1 btn-primary text-base py-4 flex items-center justify-center gap-2 rounded-2xl",
-            isSpinning && "opacity-80",
-            currentBalance < selectedBet && "opacity-50"
+            "flex-1 btn-primary text-base py-4 flex items-center justify-center gap-2 rounded-2xl font-semibold",
+            "transition-all duration-200",
+            isLocked && "opacity-80 cursor-not-allowed",
+            currentBalance < selectedBet && !isLocked && "opacity-50 cursor-not-allowed"
           )}
         >
-          <span>I'm lucky, Go!</span>
-          <span className="font-bold">{selectedBet}</span>
-          <CrystalIcon size={18} />
+          {isLocked ? (
+            <span className="animate-pulse">Spinning...</span>
+          ) : (
+            <>
+              <span>I'm lucky, Go!</span>
+              <span className="font-bold">{selectedBet}</span>
+              <CrystalIcon size={18} />
+            </>
+          )}
         </button>
         
         <div className="bg-secondary rounded-2xl px-4 py-2 flex flex-col items-center justify-center">
