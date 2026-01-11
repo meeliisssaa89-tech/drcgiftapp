@@ -41,10 +41,7 @@ export const PlayPage = () => {
   const [showWinModal, setShowWinModal] = useState(false);
   const [wonPrize, setWonPrize] = useState<Prize | null>(null);
   
-  const { spinState, position, highlightedIndex, startSpin, isLocked } = useSpinEngine({
-    itemWidth: TOTAL_ITEM_WIDTH,
-    itemCount: SPIN_ITEMS.length,
-  });
+  const { spinState, position, highlightedIndex, startSpin, isLocked } = useSpinEngine();
 
   const crystals = profile?.crystals ?? 0;
   const level = profile?.level ?? 1;
@@ -232,7 +229,7 @@ export const PlayPage = () => {
           style={carouselStyle}
         >
           {carouselItems.map((item) => {
-            const isHighlighted = item.index === highlightedIndex && (spinState === 'accelerating' || spinState === 'decelerating');
+            const isHighlighted = item.index === highlightedIndex && spinState === 'spinning';
             const isWinner = item.index === highlightedIndex && spinState === 'stopped';
             
             return (
@@ -261,8 +258,7 @@ export const PlayPage = () => {
         {/* Spin state indicator */}
         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground/50 uppercase tracking-wider">
           {spinState === 'preview' && 'Ready'}
-          {spinState === 'accelerating' && 'Spinning...'}
-          {spinState === 'decelerating' && 'Slowing...'}
+          {spinState === 'spinning' && 'Spinning...'}
           {spinState === 'stopped' && '🎉'}
         </div>
       </div>
