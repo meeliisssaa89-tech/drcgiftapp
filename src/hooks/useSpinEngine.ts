@@ -1,33 +1,16 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { Prize, PRIZES } from '@/store/gameStore';
 
-export type SpinState = 'preview' | 'accelerating' | 'decelerating' | 'stopped';
+export type SpinState = 'preview' | 'spinning' | 'stopped';
 
-interface SpinEngineConfig {
-  itemWidth: number;
-  itemCount: number;
-  previewSpeed: number;
-  maxSpeed: number;
-  accelerationDuration: number;
-  decelerationDuration: number;
-  stopDelay: number;
-}
+const ITEM_WIDTH = 132;
+const ITEM_COUNT = 7;
+const TOTAL_WIDTH = ITEM_WIDTH * ITEM_COUNT;
 
-const DEFAULT_CONFIG: SpinEngineConfig = {
-  itemWidth: 132,
-  itemCount: 7,
-  previewSpeed: 40,
-  maxSpeed: 2000,
-  accelerationDuration: 600,
-  decelerationDuration: 2500,
-  stopDelay: 1200,
-};
-
-// Easing functions
-const easeInCubic = (t: number) => t * t * t;
+// Easing
 const easeOutQuart = (t: number) => 1 - Math.pow(1 - t, 4);
 
-// Precalculate winning prize
+// Calculate winning prize
 const calculateWinningPrize = (): Prize => {
   const random = Math.random() * 100;
   let cumulative = 0;
@@ -38,172 +21,89 @@ const calculateWinningPrize = (): Prize => {
   return PRIZES[PRIZES.length - 1];
 };
 
-export const useSpinEngine = (config: Partial<SpinEngineConfig> = {}) => {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
-  const totalWidth = cfg.itemWidth * cfg.itemCount;
+export const useSpinEngine = () => {
+  const [spinState, setSpinState] = useState<SpinState>('preview');
+  const [position, setPosition] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  
+  const animationRef = useRef<number>(0);
+  const prizeRef = useRef<Prize | null>(null);
 
-  // Use refs for animation state to avoid stale closures
-  const stateRef = useRef<SpinState>('preview');
-  const positionRef = useRef(0);
-  const animationRef = useRef<number | null>(null);
-  const lastTimeRef = useRef(0);
-  const lockedRef = useRef(false);
-
-  // Spin data
-  const spinDataRef = useRef({
-    startTime: 0,
-    startPosition: 0,
-    targetPosition: 0,
-    targetPrize: null as Prize | null,
-  });
-
-  // React state for UI updates
-  const [, forceUpdate] = useState(0);
-  const triggerRender = useCallback(() => forceUpdate(n => n + 1), []);
-
-  // Calculate highlighted index
-  const getHighlightedIndex = useCallback((pos: number): number => {
-    const normalized = ((pos % totalWidth) + totalWidth) % totalWidth;
-    return Math.floor((normalized + cfg.itemWidth / 2) / cfg.itemWidth) % cfg.itemCount;
-  }, [totalWidth, cfg.itemWidth, cfg.itemCount]);
-
-  // Main animation loop - handles all states
-  const animate = useCallback((timestamp: number) => {
-    const state = stateRef.current;
-
-    if (state === 'preview') {
-      // Slow continuous scroll
-      if (lastTimeRef.current === 0) lastTimeRef.current = timestamp;
-      const delta = (timestamp - lastTimeRef.current) / 1000;
-      lastTimeRef.current = timestamp;
+  // Preview animation - slow continuous scroll
+  useEffect(() => {
+    if (spinState !== 'preview') return;
+    
+    let lastTime = performance.now();
+    
+    const loop = (now: number) => {
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
       
-      positionRef.current += cfg.previewSpeed * delta;
-      if (positionRef.current > totalWidth * 10) {
-        positionRef.current = positionRef.current % totalWidth;
-      }
-      
-      triggerRender();
-      animationRef.current = requestAnimationFrame(animate);
-    } 
-    else if (state === 'accelerating') {
-      const { startTime, startPosition } = spinDataRef.current;
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / cfg.accelerationDuration, 1);
-      
-      // Ease in - accelerate
-      const eased = easeInCubic(progress);
-      const speed = cfg.previewSpeed + (cfg.maxSpeed - cfg.previewSpeed) * eased;
-      const distance = speed * (elapsed / 1000) * 0.5;
-      
-      positionRef.current = startPosition + distance;
-      triggerRender();
+      setPosition(p => (p + 35 * delta) % (TOTAL_WIDTH * 5));
+      animationRef.current = requestAnimationFrame(loop);
+    };
+    
+    animationRef.current = requestAnimationFrame(loop);
+    
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [spinState]);
 
-      if (progress >= 1) {
-        // Transition to deceleration
-        const currentPos = positionRef.current;
-        const targetPrize = spinDataRef.current.targetPrize;
-        
-        if (targetPrize) {
-          const prizeIndex = PRIZES.findIndex(p => p.id === targetPrize.id) % cfg.itemCount;
-          const currentCycle = Math.floor(currentPos / totalWidth);
-          
-          // Calculate where we need to stop
-          let targetPos = (currentCycle + 3) * totalWidth + prizeIndex * cfg.itemWidth;
-          const minDistance = cfg.maxSpeed * (cfg.decelerationDuration / 1000) * 0.3;
-          
-          while (targetPos - currentPos < minDistance) {
-            targetPos += totalWidth;
-          }
-          
-          spinDataRef.current.startTime = timestamp;
-          spinDataRef.current.startPosition = currentPos;
-          spinDataRef.current.targetPosition = targetPos;
-        }
-        
-        stateRef.current = 'decelerating';
-      }
-      
-      animationRef.current = requestAnimationFrame(animate);
-    } 
-    else if (state === 'decelerating') {
-      const { startTime, startPosition, targetPosition } = spinDataRef.current;
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / cfg.decelerationDuration, 1);
-      
-      // Ease out - decelerate smoothly
+  // Spin animation
+  const startSpin = useCallback((): Prize => {
+    if (isLocked) return PRIZES[0];
+    
+    setIsLocked(true);
+    cancelAnimationFrame(animationRef.current);
+    
+    // Calculate prize BEFORE animation
+    const prize = calculateWinningPrize();
+    prizeRef.current = prize;
+    
+    // Find target position
+    const prizeIndex = PRIZES.findIndex(p => p.id === prize.id) % ITEM_COUNT;
+    const startPos = position;
+    const cycles = 4 + Math.random() * 2;
+    const targetPos = startPos + (cycles * TOTAL_WIDTH) + (prizeIndex * ITEM_WIDTH) - (startPos % TOTAL_WIDTH) + ITEM_WIDTH / 2;
+    
+    const duration = 3500;
+    const startTime = performance.now();
+    
+    setSpinState('spinning');
+    
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
       const eased = easeOutQuart(progress);
-      const distance = (targetPosition - startPosition) * eased;
       
-      positionRef.current = startPosition + distance;
-      triggerRender();
-
-      if (progress >= 1) {
-        positionRef.current = targetPosition;
-        stateRef.current = 'stopped';
-        triggerRender();
+      const newPos = startPos + (targetPos - startPos) * eased;
+      setPosition(newPos);
+      
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setPosition(targetPos);
+        setSpinState('stopped');
         
         // Return to preview after delay
         setTimeout(() => {
-          stateRef.current = 'preview';
-          lockedRef.current = false;
-          lastTimeRef.current = 0;
-          triggerRender();
-          animationRef.current = requestAnimationFrame(animate);
-        }, cfg.stopDelay);
-      } else {
-        animationRef.current = requestAnimationFrame(animate);
+          setSpinState('preview');
+          setIsLocked(false);
+        }, 1500);
       }
-    }
-    // 'stopped' state - no animation, wait for timeout
-  }, [cfg, totalWidth, triggerRender]);
-
-  // Start spin
-  const startSpin = useCallback((): Prize => {
-    if (lockedRef.current) return PRIZES[0];
-    
-    lockedRef.current = true;
-    
-    // Cancel current animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    
-    // Precalculate prize
-    const prize = calculateWinningPrize();
-    
-    spinDataRef.current = {
-      startTime: performance.now(),
-      startPosition: positionRef.current,
-      targetPosition: 0,
-      targetPrize: prize,
     };
     
-    stateRef.current = 'accelerating';
-    triggerRender();
     animationRef.current = requestAnimationFrame(animate);
-    
     return prize;
-  }, [animate, triggerRender]);
+  }, [isLocked, position]);
 
-  // Initialize preview on mount
-  useEffect(() => {
-    stateRef.current = 'preview';
-    lastTimeRef.current = 0;
-    animationRef.current = requestAnimationFrame(animate);
-    
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [animate]);
+  // Highlighted index calculation
+  const highlightedIndex = Math.floor((position + ITEM_WIDTH / 2) / ITEM_WIDTH) % ITEM_COUNT;
 
   return {
-    spinState: stateRef.current,
-    position: positionRef.current,
-    highlightedIndex: getHighlightedIndex(positionRef.current),
+    spinState,
+    position,
+    highlightedIndex,
     startSpin,
-    isLocked: lockedRef.current,
+    isLocked,
   };
 };
