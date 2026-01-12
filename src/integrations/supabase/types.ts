@@ -55,6 +55,170 @@ export type Database = {
           },
         ]
       }
+      game_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      giveaway_participants: {
+        Row: {
+          created_at: string
+          giveaway_id: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          giveaway_id: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          giveaway_id?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_participants_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giveaway_participants_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      giveaways: {
+        Row: {
+          created_at: string
+          current_participants: number
+          description: string
+          emoji: string
+          end_at: string
+          id: string
+          is_active: boolean
+          max_participants: number | null
+          prize_amount: number
+          prize_type: string
+          start_at: string
+          title: string
+          updated_at: string
+          winner_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_participants?: number
+          description: string
+          emoji?: string
+          end_at: string
+          id?: string
+          is_active?: boolean
+          max_participants?: number | null
+          prize_amount?: number
+          prize_type?: string
+          start_at?: string
+          title: string
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_participants?: number
+          description?: string
+          emoji?: string
+          end_at?: string
+          id?: string
+          is_active?: boolean
+          max_participants?: number | null
+          prize_amount?: number
+          prize_type?: string
+          start_at?: string
+          title?: string
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaways_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prizes: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          is_active: boolean
+          name: string
+          prize_key: string
+          probability: number
+          sort_order: number
+          type: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          is_active?: boolean
+          name: string
+          prize_key: string
+          probability?: number
+          sort_order?: number
+          type?: string
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          prize_key?: string
+          probability?: number
+          sort_order?: number
+          type?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -146,6 +310,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tasks: {
+        Row: {
+          created_at: string
+          description: string
+          emoji: string
+          id: string
+          is_active: boolean
+          max_progress: number
+          reward: number
+          sort_order: number
+          task_key: string
+          timer_hours: number | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          emoji?: string
+          id?: string
+          is_active?: boolean
+          max_progress?: number
+          reward?: number
+          sort_order?: number
+          task_key: string
+          timer_hours?: number | null
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          emoji?: string
+          id?: string
+          is_active?: boolean
+          max_progress?: number
+          reward?: number
+          sort_order?: number
+          task_key?: string
+          timer_hours?: number | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       tasks_progress: {
         Row: {
