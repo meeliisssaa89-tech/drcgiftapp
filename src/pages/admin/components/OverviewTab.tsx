@@ -1,4 +1,5 @@
 import { Users, Gem, Gamepad2, UserPlus, Share2, Gift, ListTodo, Trophy } from 'lucide-react';
+import { DailyStatsChart } from './DailyStatsChart';
 
 interface AdminStats {
   total_users: number | null;
@@ -72,6 +73,12 @@ export const OverviewTab = ({ stats, tasksCount, prizesCount, giveawaysCount }: 
           value={giveawaysCount}
           color="bg-red-500/10 text-red-500"
         />
+      </div>
+
+      {/* Daily Statistics Charts */}
+      <div className="pt-4">
+        <h2 className="text-xl font-bold mb-4">📊 Daily Statistics (Last 14 Days)</h2>
+        <DailyStatsChart />
       </div>
     </div>
   );
