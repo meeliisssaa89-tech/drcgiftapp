@@ -1,11 +1,13 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { CrystalIcon, CrystalBadge } from '@/components/CrystalIcon';
 import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { WinModal } from '@/components/WinModal';
-import { useGameStore, PRIZES, Prize } from '@/store/gameStore';
+import { useGameStore, Prize } from '@/store/gameStore';
 import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useSpinEngine } from '@/hooks/useSpinEngine';
+import { useGameData } from '@/hooks/useGameData';
 import { cn } from '@/lib/utils';
 
 const BET_AMOUNTS = [25, 50, 100, 250];
@@ -16,7 +18,8 @@ const ITEM_SPAN = ITEM_WIDTH + ITEM_GAP;
 
 export const PlayPage = () => {
   const { user, hapticFeedback } = useTelegram();
-  const { profile, deductCrystals, addCrystals, recordGame, isLoading } = useProfile();
+  const { profile, deductCrystals, addCrystals, recordGame, isLoading: profileLoading } = useProfile();
+  const { prizes: dbPrizes, settings, isLoading: gameDataLoading } = useGameData();
   const {
     isDemoMode,
     demoCrystals,
@@ -36,6 +39,33 @@ export const PlayPage = () => {
   // Keep spin context stable until stop
   const spinCtxRef = useRef<{ bet: number; isDemo: boolean } | null>(null);
 
+  // Convert DB prizes to local Prize format
+  const prizes: Prize[] = useMemo(() => {
+    if (dbPrizes.length === 0) {
+      // Fallback prizes
+      return [
+        { id: 'crystals_250', name: 'Crystals', emoji: '💎', value: 250, probability: 0.44, type: 'crystals' as const },
+        { id: 'trophy', name: 'Trophy', emoji: '🏆', value: 100, probability: 1.33, type: 'gift' as const },
+        { id: 'diamond', name: 'Diamond', emoji: '💎', value: 100, probability: 1.33, type: 'gift' as const },
+        { id: 'ring', name: 'Ring', emoji: '💍', value: 100, probability: 1.33, type: 'gift' as const },
+        { id: 'teddy', name: 'Teddy Bear', emoji: '🧸', value: 75, probability: 2.5, type: 'gift' as const },
+        { id: 'champagne', name: 'Champagne', emoji: '🍾', value: 50, probability: 5, type: 'gift' as const },
+        { id: 'flower', name: 'Flower', emoji: '🌹', value: 25, probability: 10, type: 'gift' as const },
+        { id: 'star', name: 'Star', emoji: '⭐', value: 10, probability: 15, type: 'gift' as const },
+        { id: 'nothing', name: 'Try Again', emoji: '💨', value: 0, probability: 63.07, type: 'crystals' as const },
+      ];
+    }
+
+    return dbPrizes.map((p) => ({
+      id: p.id,
+      name: p.name,
+      emoji: p.emoji,
+      value: p.value,
+      probability: p.probability,
+      type: p.type as 'crystals' | 'gift',
+    }));
+  }, [dbPrizes]);
+
   const crystals = profile?.crystals ?? 0;
   const level = profile?.level ?? 1;
   const currentBalance = isDemoMode ? demoCrystals : crystals;
@@ -43,8 +73,8 @@ export const PlayPage = () => {
   const isPremium = user?.is_premium;
 
   const spinItems = useMemo(
-    () => PRIZES.map((p) => ({ id: p.id, emoji: p.emoji, value: p.value, label: p.name })),
-    []
+    () => prizes.map((p) => ({ id: p.id, emoji: p.emoji, value: p.value, label: p.name })),
+    [prizes]
   );
 
   // Generate carousel items (3x for seamless loop)
@@ -102,7 +132,7 @@ export const PlayPage = () => {
   const { spinState, highlightedIndex, startSpin, isLocked } = useSpinEngine({
     containerRef: carouselContainerRef,
     trackRef: carouselTrackRef,
-    items: PRIZES,
+    items: prizes,
     itemSpan: ITEM_SPAN,
     onStop: applyPrizeAndShow,
   });
@@ -153,18 +183,13 @@ export const PlayPage = () => {
     setWonPrize(null);
   };
 
+  const isLoading = profileLoading || gameDataLoading;
+
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-4 pb-24 animate-fade-in">
-        <div className="card-telegram animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-secondary" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-secondary rounded w-24" />
-              <div className="h-3 bg-secondary rounded w-16" />
-            </div>
-          </div>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-muted-foreground">Loading game...</p>
       </div>
     );
   }
@@ -302,7 +327,7 @@ export const PlayPage = () => {
       <div className="mt-2">
         <p className="text-center text-muted-foreground mb-3 text-sm">You can win...</p>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2">
-          {PRIZES.filter((p) => p.value > 0)
+          {prizes.filter((p) => p.value > 0)
             .slice(0, 5)
             .map((prize) => (
               <div
