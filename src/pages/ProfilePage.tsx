@@ -1,15 +1,19 @@
-import { Settings } from 'lucide-react';
+import { Settings, Copy, Share2 } from 'lucide-react';
 import { CrystalIcon } from '@/components/CrystalIcon';
 import { useProfile } from '@/hooks/useProfile';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useGameStore } from '@/store/gameStore';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 type ProfileTab = 'gifts' | 'friends' | 'history';
 
+// Bot username - change this to your bot username
+const BOT_USERNAME = 'YourBotUsername';
+
 export const ProfilePage = () => {
-  const { user } = useTelegram();
+  const { user, openTelegramLink, hapticFeedback, isTelegram } = useTelegram();
   const { profile, gameHistory, referrals, isLoading } = useProfile();
   const { gifts } = useGameStore();
   const [activeTab, setActiveTab] = useState<ProfileTab>('gifts');
@@ -92,9 +96,35 @@ export const ProfilePage = () => {
           <h3 className="text-lg font-bold text-white">Invite friends</h3>
           <p className="text-white/80 text-sm">and earn 10% from their deposits</p>
         </div>
-        <button className="btn-outline mt-4 w-full">
-          Invite Friends
-        </button>
+        <div className="flex gap-2 mt-4">
+          <button 
+            onClick={() => {
+              const inviteLink = `https://t.me/${BOT_USERNAME}?startapp=${user?.id || ''}`;
+              if (isTelegram) {
+                openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('Join Crystal Spin and win amazing prizes! 💎')}`);
+              } else {
+                navigator.clipboard.writeText(inviteLink);
+                toast.success('Invite link copied!');
+              }
+              hapticFeedback('success');
+            }}
+            className="btn-outline flex-1 flex items-center justify-center gap-2"
+          >
+            <Share2 className="w-4 h-4" />
+            Invite Friends
+          </button>
+          <button 
+            onClick={() => {
+              const inviteLink = `https://t.me/${BOT_USERNAME}?startapp=${user?.id || ''}`;
+              navigator.clipboard.writeText(inviteLink);
+              toast.success('Link copied!');
+              hapticFeedback('light');
+            }}
+            className="bg-white/20 text-white p-3 rounded-full"
+          >
+            <Copy className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
