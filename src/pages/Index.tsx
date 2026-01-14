@@ -6,10 +6,29 @@ import { TasksPage } from '@/pages/TasksPage';
 import { LeadersPage } from '@/pages/LeadersPage';
 import { GiveawaysPage } from '@/pages/GiveawaysPage';
 import { useTelegram } from '@/hooks/useTelegram';
+import { useProfile } from '@/hooks/useProfile';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('play');
-  const { isReady } = useTelegram();
+  const { isReady, isTelegram, startParam, hapticFeedback } = useTelegram();
+  const { profile, processReferral } = useProfile();
+
+  // Process referral from start parameter
+  useEffect(() => {
+    if (startParam && profile) {
+      // startParam might be a referrer telegram ID
+      const referrerId = parseInt(startParam, 10);
+      if (!isNaN(referrerId) && referrerId !== profile.telegram_id) {
+        processReferral(referrerId);
+      }
+    }
+  }, [startParam, profile, processReferral]);
+
+  // Handle tab change with haptic feedback
+  const handleTabChange = (tab: string) => {
+    hapticFeedback('selection');
+    setActiveTab(tab);
+  };
 
   // Show loading state while Telegram SDK initializes
   if (!isReady) {
@@ -42,10 +61,17 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="px-4 pt-4 pb-20">
+      {/* Dev mode indicator */}
+      {!isTelegram && (
+        <div className="fixed top-0 left-0 right-0 bg-yellow-500/90 text-black text-xs text-center py-1 z-50">
+          🔧 Development Mode - Open in Telegram for full experience
+        </div>
+      )}
+      
+      <main className={`px-4 pt-4 pb-20 ${!isTelegram ? 'mt-6' : ''}`}>
         {renderPage()}
       </main>
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 };
