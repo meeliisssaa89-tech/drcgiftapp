@@ -19,7 +19,10 @@ export const useTaskProgress = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchTaskProgress = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      setIsLoading(false);
+      return;
+    }
     
     setIsLoading(true);
     try {
