@@ -16,7 +16,10 @@ export const useGiveawayParticipation = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchParticipations = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.id) {
+      setIsLoading(false);
+      return;
+    }
     
     setIsLoading(true);
     try {
