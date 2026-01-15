@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Prize } from "@/store/gameStore";
 
 export type SpinState = "preview" | "accelerating" | "decelerating" | "stopped";
@@ -54,59 +54,89 @@ export const useSpinEngine = ({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
 
+  // Use refs for all mutable state to avoid re-creating callbacks
   const stateRef = useRef<SpinState>("preview");
   const lockedRef = useRef(false);
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number>(0);
-
-  const positionRef = useRef(0); // grows over time
-
+  const positionRef = useRef(0);
   const accelRef = useRef({ startTs: 0, startPos: 0 });
   const decelRef = useRef({ startTs: 0, startPos: 0, targetPos: 0 });
   const winRef = useRef<{ prize: Prize | null; index: number }>({ prize: null, index: 0 });
   const stopTimeoutRef = useRef<number | null>(null);
   const lastHiRef = useRef<number>(-1);
 
-  const normalize = useCallback(
-    (pos: number) => ((pos % totalWidth) + totalWidth) % totalWidth,
-    [totalWidth]
-  );
+  // Store stable references to props
+  const itemsRef = useRef(items);
+  const onStopRef = useRef(onStop);
+  const totalWidthRef = useRef(totalWidth);
+  const itemSpanRef = useRef(itemSpan);
 
-  const applyTransform = useCallback(() => {
+  // Update refs when props change
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    onStopRef.current = onStop;
+  }, [onStop]);
+
+  useEffect(() => {
+    totalWidthRef.current = totalWidth;
+  }, [totalWidth]);
+
+  useEffect(() => {
+    itemSpanRef.current = itemSpan;
+  }, [itemSpan]);
+
+  // Stable normalize function using refs
+  const normalize = (pos: number) => {
+    const tw = totalWidthRef.current;
+    return ((pos % tw) + tw) % tw;
+  };
+
+  // Stable applyTransform using refs
+  const applyTransform = () => {
     const container = containerRef.current;
     const track = trackRef.current;
     if (!container || !track) return;
 
     const center = container.clientWidth / 2;
     const pos = normalize(positionRef.current);
+    const tw = totalWidthRef.current;
+    const iSpan = itemSpanRef.current;
 
-    // Keep the visible position inside the middle copy (3x items rendered)
-    const renderPos = pos + totalWidth;
-    const tx = -renderPos + center - itemSpan / 2;
+    const renderPos = pos + tw;
+    const tx = -renderPos + center - iSpan / 2;
 
     track.style.transform = `translate3d(${tx}px, 0, 0)`;
-  }, [containerRef, trackRef, normalize, totalWidth, itemSpan]);
+  };
 
-  const updateHighlight = useCallback(() => {
+  // Stable updateHighlight using refs
+  const updateHighlight = () => {
     const pos = normalize(positionRef.current);
-    const idx = Math.floor((pos + itemSpan / 2) / itemSpan) % items.length;
+    const iSpan = itemSpanRef.current;
+    const len = itemsRef.current.length;
+    const idx = Math.floor((pos + iSpan / 2) / iSpan) % len;
 
     if (idx !== lastHiRef.current) {
       lastHiRef.current = idx;
       setHighlightedIndex(idx);
     }
-  }, [normalize, itemSpan, items.length]);
+  };
 
-  const stopAndSchedulePreview = useCallback(() => {
+  // Stable tick function - defined once and uses refs
+  const tickFnRef = useRef<(ts: number) => void>();
+
+  const stopAndSchedulePreview = () => {
     stateRef.current = "stopped";
     setSpinState("stopped");
 
-    // Lock transform + highlight exactly at stop
     applyTransform();
     updateHighlight();
 
     const prize = winRef.current.prize;
-    if (prize) onStop?.(prize);
+    if (prize) onStopRef.current?.(prize);
 
     if (stopTimeoutRef.current) window.clearTimeout(stopTimeoutRef.current);
     stopTimeoutRef.current = window.setTimeout(() => {
@@ -117,99 +147,86 @@ export const useSpinEngine = ({
       setSpinState("preview");
 
       lastTsRef.current = 0;
-      rafRef.current = requestAnimationFrame(tick);
+      if (tickFnRef.current) {
+        rafRef.current = requestAnimationFrame(tickFnRef.current);
+      }
     }, stopDelay);
-  }, [applyTransform, onStop, stopDelay, updateHighlight]);
+  };
 
-  const tick = useCallback(
-    (ts: number) => {
-      const state = stateRef.current;
+  // Define tick once
+  tickFnRef.current = (ts: number) => {
+    const state = stateRef.current;
 
-      if (lastTsRef.current === 0) lastTsRef.current = ts;
-      const dt = (ts - lastTsRef.current) / 1000;
-      lastTsRef.current = ts;
+    if (lastTsRef.current === 0) lastTsRef.current = ts;
+    const dt = (ts - lastTsRef.current) / 1000;
+    lastTsRef.current = ts;
 
-      if (state === "preview") {
-        positionRef.current += previewSpeed * dt;
+    if (state === "preview") {
+      positionRef.current += previewSpeed * dt;
+      applyTransform();
+      updateHighlight();
+      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+      return;
+    }
+
+    if (state === "accelerating") {
+      const t = clamp01((ts - accelRef.current.startTs) / accelerationDuration);
+      const speed = previewSpeed + (maxSpeed - previewSpeed) * easeInCubic(t);
+
+      positionRef.current += speed * dt;
+      applyTransform();
+      updateHighlight();
+
+      if (t >= 1) {
+        stateRef.current = "decelerating";
+        setSpinState("decelerating");
+
+        const startPos = positionRef.current;
+        const posMod = normalize(startPos);
+        const tw = totalWidthRef.current;
+        const iSpan = itemSpanRef.current;
+        const targetMod = winRef.current.index * iSpan;
+        const delta = (targetMod - posMod + tw) % tw;
+
+        decelRef.current.startTs = ts;
+        decelRef.current.startPos = startPos;
+        decelRef.current.targetPos = startPos + minCycles * tw + delta;
+      }
+
+      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+      return;
+    }
+
+    if (state === "decelerating") {
+      const t = clamp01((ts - decelRef.current.startTs) / decelerationDuration);
+      const eased = easeOutQuart(t);
+
+      positionRef.current =
+        decelRef.current.startPos +
+        (decelRef.current.targetPos - decelRef.current.startPos) * eased;
+
+      applyTransform();
+      updateHighlight();
+
+      if (t >= 1) {
+        positionRef.current = decelRef.current.targetPos;
         applyTransform();
         updateHighlight();
-        rafRef.current = requestAnimationFrame(tick);
+
+        stopAndSchedulePreview();
         return;
       }
 
-      if (state === "accelerating") {
-        const t = clamp01((ts - accelRef.current.startTs) / accelerationDuration);
-        const speed = previewSpeed + (maxSpeed - previewSpeed) * easeInCubic(t);
+      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+    }
+  };
 
-        positionRef.current += speed * dt;
-        applyTransform();
-        updateHighlight();
-
-        if (t >= 1) {
-          // Transition to deceleration with a precomputed target position.
-          stateRef.current = "decelerating";
-          setSpinState("decelerating");
-
-          const startPos = positionRef.current;
-          const posMod = normalize(startPos);
-          const targetMod = winRef.current.index * itemSpan;
-          const delta = (targetMod - posMod + totalWidth) % totalWidth;
-
-          decelRef.current.startTs = ts;
-          decelRef.current.startPos = startPos;
-          decelRef.current.targetPos = startPos + minCycles * totalWidth + delta;
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-        return;
-      }
-
-      if (state === "decelerating") {
-        const t = clamp01((ts - decelRef.current.startTs) / decelerationDuration);
-        const eased = easeOutQuart(t);
-
-        positionRef.current =
-          decelRef.current.startPos +
-          (decelRef.current.targetPos - decelRef.current.startPos) * eased;
-
-        applyTransform();
-        updateHighlight();
-
-        if (t >= 1) {
-          positionRef.current = decelRef.current.targetPos;
-          applyTransform();
-          updateHighlight();
-
-          // Stop: no more RAF until preview resumes.
-          stopAndSchedulePreview();
-          return;
-        }
-
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    },
-    [
-      accelerationDuration,
-      applyTransform,
-      decelerationDuration,
-      maxSpeed,
-      minCycles,
-      normalize,
-      previewSpeed,
-      stopAndSchedulePreview,
-      totalWidth,
-      itemSpan,
-      updateHighlight,
-    ]
-  );
-
-  const startSpin = useCallback((): Prize | null => {
+  const startSpin = (): Prize | null => {
     if (lockedRef.current) return null;
 
     lockedRef.current = true;
     setIsLocked(true);
 
-    // Cancel current RAF loop cleanly (preview)
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -219,9 +236,8 @@ export const useSpinEngine = ({
       stopTimeoutRef.current = null;
     }
 
-    // Pre-calculate winning prize BEFORE any animation (fair + deterministic for animation)
-    const prize = calculateWinningPrize(items);
-    const index = Math.max(0, items.findIndex((p) => p.id === prize.id));
+    const prize = calculateWinningPrize(itemsRef.current);
+    const index = Math.max(0, itemsRef.current.findIndex((p) => p.id === prize.id));
     winRef.current = { prize, index };
 
     stateRef.current = "accelerating";
@@ -231,28 +247,27 @@ export const useSpinEngine = ({
     lastTsRef.current = now;
     accelRef.current = { startTs: now, startPos: positionRef.current };
 
-    rafRef.current = requestAnimationFrame(tick);
+    if (tickFnRef.current) {
+      rafRef.current = requestAnimationFrame(tickFnRef.current);
+    }
     return prize;
-  }, [items, tick]);
+  };
 
-  // Start preview loop on mount
+  // Start preview loop on mount - only runs once
   useEffect(() => {
     stateRef.current = "preview";
     setSpinState("preview");
 
     lastTsRef.current = 0;
-    rafRef.current = requestAnimationFrame(tick);
+    if (tickFnRef.current) {
+      rafRef.current = requestAnimationFrame(tickFnRef.current);
+    }
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (stopTimeoutRef.current) window.clearTimeout(stopTimeoutRef.current);
     };
-  }, [tick]);
-
-  // In case container size changes (mobile rotation), re-apply transform
-  useEffect(() => {
-    applyTransform();
-  }, [applyTransform]);
+  }, []); // Empty deps - only mount/unmount
 
   return {
     spinState,
