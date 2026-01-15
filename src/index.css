@@ -68,15 +68,17 @@
     @apply border-border;
   }
 
-  html, body, #root {
+  html {
     @apply h-full;
-    /* Prevent overscroll and bounce on iOS */
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
+  }
+
+  body {
+    @apply min-h-full;
   }
 
   #root {
+    @apply min-h-full;
+    /* Enable scrolling */
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }

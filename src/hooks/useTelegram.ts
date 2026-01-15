@@ -12,6 +12,14 @@ const isTelegramEnvironment = (): boolean => {
   return false;
 };
 
+const getDefaultMockUser = (): TelegramUser => ({
+  id: 123456789,
+  first_name: 'Dev',
+  last_name: 'User',
+  username: 'devuser',
+  is_premium: false,
+});
+
 export const useTelegram = () => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
   const [user, setUser] = useState<TelegramUser | null>(null);
@@ -19,7 +27,11 @@ export const useTelegram = () => {
   const [isTelegram, setIsTelegram] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+    
     const initTelegram = () => {
+      if (!mounted) return;
+      
       const tg = window.Telegram?.WebApp;
       
       if (tg && isTelegramEnvironment()) {
@@ -83,18 +95,13 @@ export const useTelegram = () => {
       }
     };
 
-    // Small delay to ensure SDK is loaded
-    const timer = setTimeout(initTelegram, 50);
-    return () => clearTimeout(timer);
-  }, []);
+    // Try immediately
+    initTelegram();
 
-  const getDefaultMockUser = (): TelegramUser => ({
-    id: 123456789,
-    first_name: 'Dev',
-    last_name: 'User',
-    username: 'devuser',
-    is_premium: false,
-  });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const hapticFeedback = useCallback((type: 'light' | 'medium' | 'heavy' | 'success' | 'error' | 'warning' | 'selection') => {
     if (!webApp?.HapticFeedback) return;
