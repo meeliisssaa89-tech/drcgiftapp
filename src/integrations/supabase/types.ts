@@ -313,6 +313,8 @@ export type Database = {
       }
       tasks: {
         Row: {
+          action_type: string | null
+          action_url: string | null
           created_at: string
           description: string
           emoji: string
@@ -328,6 +330,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          action_type?: string | null
+          action_url?: string | null
           created_at?: string
           description: string
           emoji?: string
@@ -343,6 +347,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          action_type?: string | null
+          action_url?: string | null
           created_at?: string
           description?: string
           emoji?: string
