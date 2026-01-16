@@ -35,6 +35,32 @@ const calculateWinningPrize = (items: Prize[]): Prize => {
   return items[items.length - 1];
 };
 
+// Polyfill for performance.now() - some Telegram WebViews have issues
+const getTimestamp = (): number => {
+  if (typeof performance !== 'undefined' && performance.now) {
+    return performance.now();
+  }
+  return Date.now();
+};
+
+// Safe requestAnimationFrame with fallback for Telegram WebView
+const safeRAF = (callback: (ts: number) => void): number => {
+  if (typeof requestAnimationFrame !== 'undefined') {
+    return requestAnimationFrame(callback);
+  }
+  // Fallback to setTimeout for environments without RAF
+  return window.setTimeout(() => callback(getTimestamp()), 16) as unknown as number;
+};
+
+const safeCancelRAF = (id: number | null) => {
+  if (id === null) return;
+  if (typeof cancelAnimationFrame !== 'undefined') {
+    cancelAnimationFrame(id);
+  } else {
+    clearTimeout(id);
+  }
+};
+
 export const useSpinEngine = ({
   containerRef,
   trackRef,
@@ -138,7 +164,9 @@ export const useSpinEngine = ({
     const prize = winRef.current.prize;
     if (prize) onStopRef.current?.(prize);
 
-    if (stopTimeoutRef.current) window.clearTimeout(stopTimeoutRef.current);
+    if (stopTimeoutRef.current) {
+      window.clearTimeout(stopTimeoutRef.current);
+    }
     stopTimeoutRef.current = window.setTimeout(() => {
       lockedRef.current = false;
       setIsLocked(false);
@@ -148,7 +176,7 @@ export const useSpinEngine = ({
 
       lastTsRef.current = 0;
       if (tickFnRef.current) {
-        rafRef.current = requestAnimationFrame(tickFnRef.current);
+        rafRef.current = safeRAF(tickFnRef.current);
       }
     }, stopDelay);
   };
@@ -165,7 +193,7 @@ export const useSpinEngine = ({
       positionRef.current += previewSpeed * dt;
       applyTransform();
       updateHighlight();
-      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+      rafRef.current = safeRAF(tickFnRef.current!);
       return;
     }
 
@@ -193,7 +221,7 @@ export const useSpinEngine = ({
         decelRef.current.targetPos = startPos + minCycles * tw + delta;
       }
 
-      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+      rafRef.current = safeRAF(tickFnRef.current!);
       return;
     }
 
@@ -217,7 +245,7 @@ export const useSpinEngine = ({
         return;
       }
 
-      rafRef.current = requestAnimationFrame(tickFnRef.current!);
+      rafRef.current = safeRAF(tickFnRef.current!);
     }
   };
 
@@ -228,7 +256,7 @@ export const useSpinEngine = ({
     setIsLocked(true);
 
     if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+      safeCancelRAF(rafRef.current);
       rafRef.current = null;
     }
     if (stopTimeoutRef.current) {
@@ -243,12 +271,12 @@ export const useSpinEngine = ({
     stateRef.current = "accelerating";
     setSpinState("accelerating");
 
-    const now = performance.now();
+    const now = getTimestamp();
     lastTsRef.current = now;
     accelRef.current = { startTs: now, startPos: positionRef.current };
 
     if (tickFnRef.current) {
-      rafRef.current = requestAnimationFrame(tickFnRef.current);
+      rafRef.current = safeRAF(tickFnRef.current);
     }
     return prize;
   };
@@ -260,11 +288,11 @@ export const useSpinEngine = ({
 
     lastTsRef.current = 0;
     if (tickFnRef.current) {
-      rafRef.current = requestAnimationFrame(tickFnRef.current);
+      rafRef.current = safeRAF(tickFnRef.current);
     }
 
     return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      safeCancelRAF(rafRef.current);
       if (stopTimeoutRef.current) window.clearTimeout(stopTimeoutRef.current);
     };
   }, []); // Empty deps - only mount/unmount
