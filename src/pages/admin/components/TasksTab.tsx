@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Play, Users, Share2, Gift, ExternalLink, Clipboard } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,22 @@ interface TasksTabProps {
   onDelete: (id: string) => Promise<boolean>;
 }
 
+const ACTION_TYPES = [
+  { value: 'manual', label: 'Manual', icon: Clipboard, description: 'User marks as complete manually' },
+  { value: 'play_games', label: 'Play Games', icon: Play, description: 'Auto-tracks games played' },
+  { value: 'invite', label: 'Invite Friends', icon: Users, description: 'Invite friends to join' },
+  { value: 'share', label: 'Share', icon: Share2, description: 'Share to stories/social' },
+  { value: 'claim_daily', label: 'Daily Claim', icon: Gift, description: 'One-click daily reward' },
+  { value: 'external_link', label: 'External Link', icon: ExternalLink, description: 'Opens a URL' },
+];
+
+const getActionIcon = (actionType: string) => {
+  const action = ACTION_TYPES.find(a => a.value === actionType);
+  if (!action) return null;
+  const Icon = action.icon;
+  return <Icon className="w-3.5 h-3.5" />;
+};
+
 export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<DbTask | null>(null);
@@ -41,6 +57,8 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
     is_active: true,
     timer_hours: null as number | null,
     sort_order: 0,
+    action_type: 'manual',
+    action_url: '' as string | null,
   });
 
   const openCreate = () => {
@@ -56,6 +74,8 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
       is_active: true,
       timer_hours: null,
       sort_order: tasks.length + 1,
+      action_type: 'manual',
+      action_url: '',
     });
     setIsDialogOpen(true);
   };
@@ -73,15 +93,22 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
       is_active: task.is_active,
       timer_hours: task.timer_hours,
       sort_order: task.sort_order,
+      action_type: task.action_type || 'manual',
+      action_url: task.action_url || '',
     });
     setIsDialogOpen(true);
   };
 
   const handleSave = async () => {
+    const dataToSave = {
+      ...formData,
+      action_url: formData.action_url || null,
+    };
+    
     if (editingTask) {
-      await onUpdate(editingTask.id, formData);
+      await onUpdate(editingTask.id, dataToSave);
     } else {
-      await onCreate(formData);
+      await onCreate(dataToSave);
     }
     setIsDialogOpen(false);
   };
@@ -119,13 +146,22 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
                 <div>
                   <h3 className="font-semibold">{task.title}</h3>
                   <p className="text-sm text-muted-foreground">{task.description}</p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                       {task.type}
+                    </span>
+                    <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded-full flex items-center gap-1">
+                      {getActionIcon(task.action_type || 'manual')}
+                      {task.action_type || 'manual'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       +{task.reward} 💎 • {task.max_progress} steps
                     </span>
+                    {task.timer_hours && (
+                      <span className="text-xs text-muted-foreground">
+                        ⏱️ {task.timer_hours}h
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -214,6 +250,41 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>Action Type</Label>
+                <Select 
+                  value={formData.action_type} 
+                  onValueChange={(v) => setFormData({ ...formData, action_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACTION_TYPES.map((action) => (
+                      <SelectItem key={action.value} value={action.value}>
+                        <div className="flex items-center gap-2">
+                          <action.icon className="w-4 h-4" />
+                          <span>{action.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {formData.action_type === 'external_link' && (
+              <div className="space-y-2">
+                <Label>Action URL</Label>
+                <Input
+                  value={formData.action_url || ''}
+                  onChange={(e) => setFormData({ ...formData, action_url: e.target.value })}
+                  placeholder="https://example.com"
+                />
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Reward 💎</Label>
                 <Input
                   type="number"
@@ -222,8 +293,6 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
                   min="0"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Max Progress</Label>
                 <Input
@@ -233,6 +302,8 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
                   min="1"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Timer (hours)</Label>
                 <Input
@@ -240,6 +311,15 @@ export const TasksTab = ({ tasks, onCreate, onUpdate, onDelete }: TasksTabProps)
                   value={formData.timer_hours ?? ''}
                   onChange={(e) => setFormData({ ...formData, timer_hours: e.target.value ? parseInt(e.target.value) : null })}
                   placeholder="Optional"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Sort Order</Label>
+                <Input
+                  type="number"
+                  value={formData.sort_order}
+                  onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
+                  min="0"
                 />
               </div>
             </div>
