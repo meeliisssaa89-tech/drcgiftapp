@@ -5,9 +5,11 @@ import { ToggleSwitch } from '@/components/ToggleSwitch';
 import { WinModal } from '@/components/WinModal';
 import { useGameStore, Prize } from '@/store/gameStore';
 import { useProfile } from '@/hooks/useProfile';
+import { useHaptics } from '@/hooks/useHaptics';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useSpinEngine } from '@/hooks/useSpinEngine';
 import { useGameData } from '@/hooks/useGameData';
+import { useGameTracking } from '@/hooks/useGameTracking';
 import { cn } from '@/lib/utils';
 
 const BET_AMOUNTS = [25, 50, 100, 250];
@@ -17,9 +19,11 @@ const ITEM_GAP = 12;
 const ITEM_SPAN = ITEM_WIDTH + ITEM_GAP;
 
 export const PlayPage = () => {
-  const { user, hapticFeedback } = useTelegram();
+  const { buttonPress, selectionChange, success: hapticSuccess, error: hapticError, medium: hapticMedium, celebrate } = useHaptics();
+  const { user } = useTelegram();
   const { profile, deductCrystals, addCrystals, recordGame, isLoading: profileLoading } = useProfile();
   const { prizes: dbPrizes, settings, isLoading: gameDataLoading } = useGameData();
+  const { trackGamePlayed } = useGameTracking();
   const {
     isDemoMode,
     demoCrystals,
@@ -97,7 +101,7 @@ export const PlayPage = () => {
       const demo = ctx.isDemo;
 
       if (winningPrize.value > 0) {
-        hapticFeedback('success');
+        celebrate();
 
         if (demo) {
           if (winningPrize.type === 'crystals') {
@@ -113,6 +117,8 @@ export const PlayPage = () => {
           }
 
           recordGame(bet, winningPrize.value, winningPrize.emoji, winningPrize.name, false);
+          // Track game played for tasks
+          trackGamePlayed();
         }
 
         setWonPrize(winningPrize);
@@ -120,13 +126,15 @@ export const PlayPage = () => {
       } else {
         if (!demo) {
           recordGame(bet, 0, '💨', 'No win', false);
+          // Track game played for tasks even on no win
+          trackGamePlayed();
         }
       }
 
       // clear context after applying
       spinCtxRef.current = null;
     },
-    [addCrystals, addDemoCrystals, addGift, hapticFeedback, recordGame]
+    [addCrystals, addDemoCrystals, addGift, celebrate, recordGame, trackGamePlayed]
   );
 
   const { spinState, highlightedIndex, startSpin, isLocked } = useSpinEngine({
@@ -139,7 +147,7 @@ export const PlayPage = () => {
 
   const handleBetSelect = (amount: number) => {
     if (isLocked) return;
-    hapticFeedback('selection');
+    selectionChange();
     setSelectedBet(amount);
   };
 
@@ -147,20 +155,20 @@ export const PlayPage = () => {
     if (isLocked) return;
 
     if (currentBalance < selectedBet) {
-      hapticFeedback('error');
+      hapticError();
       return;
     }
 
     // Deduct BEFORE spin starts
     if (isDemoMode) {
       if (!deductDemoCrystals(selectedBet)) {
-        hapticFeedback('error');
+        hapticError();
         return;
       }
     } else {
-      const success = await deductCrystals(selectedBet);
-      if (!success) {
-        hapticFeedback('error');
+      const deductSuccess = await deductCrystals(selectedBet);
+      if (!deductSuccess) {
+        hapticError();
         return;
       }
     }
@@ -168,15 +176,15 @@ export const PlayPage = () => {
     // Lock context for this round
     spinCtxRef.current = { bet: selectedBet, isDemo: isDemoMode };
 
-    hapticFeedback('medium');
+    hapticMedium();
     const prize = startSpin();
 
     // If for any reason spin didn't start, restore lock/context
     if (!prize) {
       spinCtxRef.current = null;
-      hapticFeedback('error');
+      hapticError();
     }
-  }, [isLocked, currentBalance, selectedBet, isDemoMode, deductDemoCrystals, deductCrystals, hapticFeedback, startSpin]);
+  }, [isLocked, currentBalance, selectedBet, isDemoMode, deductDemoCrystals, deductCrystals, hapticError, hapticMedium, startSpin]);
 
   const closeWinModal = () => {
     setShowWinModal(false);

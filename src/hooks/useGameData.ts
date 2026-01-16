@@ -25,6 +25,8 @@ export interface DbTask {
   is_active: boolean;
   timer_hours: number | null;
   sort_order: number;
+  action_url: string | null;
+  action_type: string;
 }
 
 export interface DbGiveaway {
