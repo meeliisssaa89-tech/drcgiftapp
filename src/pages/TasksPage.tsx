@@ -211,15 +211,17 @@ export const TasksPage = () => {
         break;
 
       case 'external_link':
-        // Open external link
+        // Open external link and mark as completed
         if (task.action_url) {
           if (isTelegram) {
             openLink(task.action_url);
           } else {
             window.open(task.action_url, '_blank');
           }
-          // Mark as started
-          await startTask(task.id);
+          // Mark as completed immediately for external links
+          await updateProgress(task.id, task.max_progress, task.max_progress);
+          success();
+          toast.success('Task completed! Claim your reward.');
         }
         break;
 

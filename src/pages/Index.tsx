@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BottomNav } from '@/components/BottomNav';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { PlayPage } from '@/pages/PlayPage';
@@ -7,11 +7,24 @@ import { LeadersPage } from '@/pages/LeadersPage';
 import { GiveawaysPage } from '@/pages/GiveawaysPage';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useProfile } from '@/hooks/useProfile';
+import { useGameData } from '@/hooks/useGameData';
+import { useTaskProgress } from '@/hooks/useTaskProgress';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('play');
   const { isReady, isTelegram, startParam, hapticFeedback } = useTelegram();
   const { profile, processReferral } = useProfile();
+  const { tasks } = useGameData();
+  const { getTaskProgress } = useTaskProgress();
+
+  // Check if there are new/unclaimed tasks
+  const hasNewTasks = useMemo(() => {
+    return tasks.some(task => {
+      const progress = getTaskProgress(task.id);
+      // Has new tasks if: task not started OR task completed but not claimed
+      return !progress || (progress.completed && !progress.claimed);
+    });
+  }, [tasks, getTaskProgress]);
 
   // Process referral from start parameter
   useEffect(() => {
@@ -68,10 +81,10 @@ const Index = () => {
         </div>
       )}
       
-      <main className={`px-4 pt-4 pb-20 ${!isTelegram ? 'mt-6' : ''}`}>
+      <main className={`px-4 pt-4 pb-28 ${!isTelegram ? 'mt-6' : ''}`}>
         {renderPage()}
       </main>
-      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      <BottomNav activeTab={activeTab} onTabChange={handleTabChange} hasNewTasks={hasNewTasks} />
     </div>
   );
 };
