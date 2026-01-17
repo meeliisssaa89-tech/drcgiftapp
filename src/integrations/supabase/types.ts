@@ -131,6 +131,9 @@ export type Database = {
           prize_amount: number
           prize_type: string
           start_at: string
+          telegram_gift_id: string | null
+          telegram_gift_message: string | null
+          telegram_gift_months: number | null
           title: string
           updated_at: string
           winner_id: string | null
@@ -147,6 +150,9 @@ export type Database = {
           prize_amount?: number
           prize_type?: string
           start_at?: string
+          telegram_gift_id?: string | null
+          telegram_gift_message?: string | null
+          telegram_gift_months?: number | null
           title: string
           updated_at?: string
           winner_id?: string | null
@@ -163,6 +169,9 @@ export type Database = {
           prize_amount?: number
           prize_type?: string
           start_at?: string
+          telegram_gift_id?: string | null
+          telegram_gift_message?: string | null
+          telegram_gift_months?: number | null
           title?: string
           updated_at?: string
           winner_id?: string | null
@@ -429,6 +438,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wallet_deposits: {
+        Row: {
+          amount: number
+          confirmed_at: string | null
+          created_at: string
+          crystals_credited: number
+          id: string
+          profile_id: string
+          status: string
+          token_symbol: string
+          tx_hash: string
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          confirmed_at?: string | null
+          created_at?: string
+          crystals_credited?: number
+          id?: string
+          profile_id: string
+          status?: string
+          token_symbol?: string
+          tx_hash: string
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          crystals_credited?: number
+          id?: string
+          profile_id?: string
+          status?: string
+          token_symbol?: string
+          tx_hash?: string
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_deposits_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
