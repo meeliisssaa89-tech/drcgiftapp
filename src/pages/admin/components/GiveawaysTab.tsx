@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit, Trash2, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Gift, Crown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,9 +27,16 @@ interface GiveawaysTabProps {
   onDelete: (id: string) => Promise<boolean>;
 }
 
+// Extended giveaway type with telegram fields
+interface ExtendedGiveaway extends DbGiveaway {
+  telegram_gift_id?: string | null;
+  telegram_gift_months?: number | null;
+  telegram_gift_message?: string | null;
+}
+
 export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: GiveawaysTabProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingGiveaway, setEditingGiveaway] = useState<DbGiveaway | null>(null);
+  const [editingGiveaway, setEditingGiveaway] = useState<ExtendedGiveaway | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -40,6 +47,10 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
     start_at: new Date().toISOString().slice(0, 16),
     end_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
     is_active: true,
+    // Telegram gift fields
+    telegram_gift_id: '',
+    telegram_gift_months: 3,
+    telegram_gift_message: '',
   });
 
   const openCreate = () => {
@@ -54,11 +65,14 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
       start_at: new Date().toISOString().slice(0, 16),
       end_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
       is_active: true,
+      telegram_gift_id: '',
+      telegram_gift_months: 3,
+      telegram_gift_message: '',
     });
     setIsDialogOpen(true);
   };
 
-  const openEdit = (giveaway: DbGiveaway) => {
+  const openEdit = (giveaway: ExtendedGiveaway) => {
     setEditingGiveaway(giveaway);
     setFormData({
       title: giveaway.title,
@@ -70,21 +84,37 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
       start_at: new Date(giveaway.start_at).toISOString().slice(0, 16),
       end_at: new Date(giveaway.end_at).toISOString().slice(0, 16),
       is_active: giveaway.is_active,
+      telegram_gift_id: giveaway.telegram_gift_id || '',
+      telegram_gift_months: giveaway.telegram_gift_months || 3,
+      telegram_gift_message: giveaway.telegram_gift_message || '',
     });
     setIsDialogOpen(true);
   };
 
   const handleSave = async () => {
-    const data = {
-      ...formData,
+    const data: Record<string, unknown> = {
+      title: formData.title,
+      description: formData.description,
+      emoji: formData.emoji,
+      prize_amount: formData.prize_amount,
+      prize_type: formData.prize_type,
+      max_participants: formData.max_participants,
       start_at: new Date(formData.start_at).toISOString(),
       end_at: new Date(formData.end_at).toISOString(),
+      is_active: formData.is_active,
     };
+
+    // Add telegram gift fields if prize type is telegram
+    if (formData.prize_type === 'telegram_premium' || formData.prize_type === 'telegram_gift') {
+      data.telegram_gift_id = formData.telegram_gift_id || null;
+      data.telegram_gift_months = formData.telegram_gift_months;
+      data.telegram_gift_message = formData.telegram_gift_message || null;
+    }
     
     if (editingGiveaway) {
-      await onUpdate(editingGiveaway.id, data);
+      await onUpdate(editingGiveaway.id, data as Partial<DbGiveaway>);
     } else {
-      await onCreate(data);
+      await onCreate(data as Partial<DbGiveaway>);
     }
     setIsDialogOpen(false);
   };
@@ -107,6 +137,30 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
     if (now < start) return { text: 'Upcoming', color: 'bg-blue-500/20 text-blue-500' };
     if (now > end) return { text: 'Ended', color: 'bg-orange-500/20 text-orange-500' };
     return { text: 'Active', color: 'bg-green-500/20 text-green-500' };
+  };
+
+  const getPrizeIcon = (prizeType: string) => {
+    switch (prizeType) {
+      case 'telegram_premium':
+        return <Crown className="w-4 h-4 text-purple-400" />;
+      case 'telegram_gift':
+        return <Gift className="w-4 h-4 text-pink-400" />;
+      default:
+        return '💎';
+    }
+  };
+
+  const getPrizeLabel = (prizeType: string) => {
+    switch (prizeType) {
+      case 'telegram_premium':
+        return 'Telegram Premium';
+      case 'telegram_gift':
+        return 'Telegram Gift';
+      case 'crystals':
+        return 'Crystals';
+      default:
+        return prizeType;
+    }
   };
 
   return (
@@ -141,7 +195,10 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
                     </div>
                     <p className="text-sm text-muted-foreground">{giveaway.description}</p>
                     <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                      <span>Prize: {giveaway.prize_amount} {giveaway.prize_type === 'crystals' ? '💎' : '🎁'}</span>
+                      <span className="flex items-center gap-1">
+                        Prize: {giveaway.prize_amount} {getPrizeIcon(giveaway.prize_type)}
+                        <span className="ml-1">{getPrizeLabel(giveaway.prize_type)}</span>
+                      </span>
                       <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
                         {giveaway.current_participants}{giveaway.max_participants ? `/${giveaway.max_participants}` : ''} joined
@@ -157,7 +214,7 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
                     checked={giveaway.is_active}
                     onCheckedChange={() => handleToggleActive(giveaway)}
                   />
-                  <Button size="sm" variant="ghost" onClick={() => openEdit(giveaway)}>
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(giveaway as ExtendedGiveaway)}>
                     <Edit className="w-4 h-4" />
                   </Button>
                   <Button 
@@ -182,11 +239,11 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
 
       {/* Giveaway Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingGiveaway ? 'Edit Giveaway' : 'Create Giveaway'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="space-y-4 py-4">
             <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2 col-span-3">
                 <Label>Title</Label>
@@ -223,8 +280,10 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="crystals">Crystals</SelectItem>
-                    <SelectItem value="gift">Gift</SelectItem>
+                    <SelectItem value="crystals">💎 Crystals</SelectItem>
+                    <SelectItem value="telegram_premium">👑 Telegram Premium</SelectItem>
+                    <SelectItem value="telegram_gift">🎁 Telegram Gift</SelectItem>
+                    <SelectItem value="gift">🎀 Physical Gift</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -238,6 +297,63 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
                 />
               </div>
             </div>
+
+            {/* Telegram Gift Fields */}
+            {(formData.prize_type === 'telegram_premium' || formData.prize_type === 'telegram_gift') && (
+              <div className="space-y-4 p-4 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                <h4 className="font-medium text-purple-400 flex items-center gap-2">
+                  <Crown className="w-4 h-4" />
+                  Telegram Gift Settings
+                </h4>
+                
+                {formData.prize_type === 'telegram_premium' && (
+                  <div className="space-y-2">
+                    <Label>Premium Duration (months)</Label>
+                    <Select 
+                      value={formData.telegram_gift_months.toString()} 
+                      onValueChange={(v) => setFormData({ ...formData, telegram_gift_months: parseInt(v) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">3 months (1000 ⭐)</SelectItem>
+                        <SelectItem value="6">6 months (1500 ⭐)</SelectItem>
+                        <SelectItem value="12">12 months (2500 ⭐)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {formData.prize_type === 'telegram_gift' && (
+                  <div className="space-y-2">
+                    <Label>Gift ID (from Telegram)</Label>
+                    <Input
+                      value={formData.telegram_gift_id}
+                      onChange={(e) => setFormData({ ...formData, telegram_gift_id: e.target.value })}
+                      placeholder="e.g., gift_abc123"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Get gift IDs from Telegram Bot API getAvailableGifts
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Gift Message (optional)</Label>
+                  <Input
+                    value={formData.telegram_gift_message}
+                    onChange={(e) => setFormData({ ...formData, telegram_gift_message: e.target.value })}
+                    placeholder="Congratulations! 🎉"
+                    maxLength={128}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Message shown with the gift (max 128 chars)
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Max Participants (optional)</Label>
               <Input

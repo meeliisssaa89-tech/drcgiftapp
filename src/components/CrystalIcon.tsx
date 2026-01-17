@@ -1,9 +1,39 @@
+import { useCurrencySettings } from '@/hooks/useCurrencySettings';
+
 interface CrystalIconProps {
   className?: string;
   size?: number;
 }
 
 export const CrystalIcon = ({ className = '', size = 16 }: CrystalIconProps) => {
+  const { settings } = useCurrencySettings();
+  
+  // If custom icon URL is provided, use it
+  if (settings.icon_url) {
+    return (
+      <img 
+        src={settings.icon_url} 
+        alt={settings.name}
+        width={size}
+        height={size}
+        className={className}
+      />
+    );
+  }
+
+  // If emoji symbol is provided (not a URL), show emoji
+  if (settings.symbol && !settings.symbol.startsWith('http')) {
+    return (
+      <span 
+        className={className}
+        style={{ fontSize: size * 0.8, lineHeight: 1 }}
+      >
+        {settings.symbol}
+      </span>
+    );
+  }
+
+  // Default SVG crystal icon
   return (
     <svg 
       viewBox="0 0 24 24" 
