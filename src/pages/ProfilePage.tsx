@@ -12,7 +12,11 @@ type ProfileTab = 'gifts' | 'friends' | 'history';
 // Bot username - change this to your bot username
 const BOT_USERNAME = 'YourBotUsername';
 
-export const ProfilePage = () => {
+interface ProfilePageProps {
+  onOpenDeposit?: () => void;
+}
+
+export const ProfilePage = ({ onOpenDeposit }: ProfilePageProps) => {
   const { user, openTelegramLink, hapticFeedback, isTelegram } = useTelegram();
   const { profile, gameHistory, referrals, isLoading } = useProfile();
   const { gifts } = useGameStore();
@@ -85,8 +89,14 @@ export const ProfilePage = () => {
         </div>
         
         {/* Top Up Button */}
-        <button className="w-full btn-primary mt-4 text-base rounded-xl">
-          Top Up
+        <button 
+          className="w-full btn-primary mt-4 text-base rounded-xl"
+          onClick={() => {
+            hapticFeedback('light');
+            onOpenDeposit?.();
+          }}
+        >
+          💎 Top Up
         </button>
       </div>
 
