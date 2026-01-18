@@ -125,6 +125,7 @@ export type Database = {
           description: string
           emoji: string
           end_at: string
+          gift_image_url: string | null
           id: string
           is_active: boolean
           max_participants: number | null
@@ -144,6 +145,7 @@ export type Database = {
           description: string
           emoji?: string
           end_at: string
+          gift_image_url?: string | null
           id?: string
           is_active?: boolean
           max_participants?: number | null
@@ -163,6 +165,7 @@ export type Database = {
           description?: string
           emoji?: string
           end_at?: string
+          gift_image_url?: string | null
           id?: string
           is_active?: boolean
           max_participants?: number | null

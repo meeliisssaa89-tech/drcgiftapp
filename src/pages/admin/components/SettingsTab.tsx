@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Save, Coins, Wallet, Settings2 } from 'lucide-react';
+import { Save, Coins, Wallet, Settings2, X } from 'lucide-react';
 import { DbGameSetting } from '@/hooks/useAdminData';
 import {
   Select,
@@ -75,6 +75,14 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     }
   };
 
+  const handleClearField = (settingId: string, key: string) => {
+    const current = editedValues[settingId] ?? settings.find(s => s.id === settingId)?.value ?? {};
+    setEditedValues({
+      ...editedValues,
+      [settingId]: { ...current, [key]: '' },
+    });
+  };
+
   const renderCurrencySettings = (setting: DbGameSetting) => {
     const value = getEditedValue(setting) as Record<string, unknown>;
     
@@ -91,20 +99,61 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
           </div>
           <div className="space-y-2">
             <Label>Symbol/Emoji</Label>
-            <Input
-              value={(value.symbol as string) || ''}
-              onChange={(e) => handleChange(setting.id, 'symbol', e.target.value)}
-              placeholder="💎"
-            />
+            <div className="flex gap-2">
+              <Input
+                value={(value.symbol as string) || ''}
+                onChange={(e) => handleChange(setting.id, 'symbol', e.target.value)}
+                placeholder="💎"
+                className="flex-1"
+              />
+              {(value.symbol as string) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => handleClearField(setting.id, 'symbol')}
+                  title="Clear symbol"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
         <div className="space-y-2">
           <Label>Icon URL (optional)</Label>
-          <Input
-            value={(value.icon_url as string) || ''}
-            onChange={(e) => handleChange(setting.id, 'icon_url', e.target.value)}
-            placeholder="https://example.com/icon.png"
-          />
+          <div className="flex gap-2">
+            <Input
+              value={(value.icon_url as string) || ''}
+              onChange={(e) => handleChange(setting.id, 'icon_url', e.target.value)}
+              placeholder="https://example.com/icon.png"
+              className="flex-1"
+            />
+            {(value.icon_url as string) && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => handleClearField(setting.id, 'icon_url')}
+                title="Clear icon URL"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+          {(value.icon_url as string) && (
+            <div className="flex items-center gap-2 mt-2">
+              <img 
+                src={value.icon_url as string} 
+                alt="Preview" 
+                className="w-8 h-8 object-contain rounded"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <span className="text-xs text-muted-foreground">Icon preview</span>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div className="space-y-2">

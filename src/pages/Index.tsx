@@ -5,6 +5,7 @@ import { PlayPage } from '@/pages/PlayPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { LeadersPage } from '@/pages/LeadersPage';
 import { GiveawaysPage } from '@/pages/GiveawaysPage';
+import { DepositPage } from '@/pages/DepositPage';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useProfile } from '@/hooks/useProfile';
 import { useGameData } from '@/hooks/useGameData';
@@ -12,6 +13,7 @@ import { useTaskProgress } from '@/hooks/useTaskProgress';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('play');
+  const [showDeposit, setShowDeposit] = useState(false);
   const { isReady, isTelegram, startParam, hapticFeedback } = useTelegram();
   const { profile, processReferral } = useProfile();
   const { tasks } = useGameData();
@@ -40,6 +42,7 @@ const Index = () => {
   // Handle tab change with haptic feedback
   const handleTabChange = (tab: string) => {
     hapticFeedback('selection');
+    setShowDeposit(false);
     setActiveTab(tab);
   };
 
@@ -56,6 +59,10 @@ const Index = () => {
   }
 
   const renderPage = () => {
+    if (showDeposit) {
+      return <DepositPage />;
+    }
+    
     switch (activeTab) {
       case 'leaders':
         return <LeadersPage />;
@@ -66,7 +73,7 @@ const Index = () => {
       case 'tasks':
         return <TasksPage />;
       case 'profile':
-        return <ProfilePage />;
+        return <ProfilePage onOpenDeposit={() => setShowDeposit(true)} />;
       default:
         return <PlayPage />;
     }

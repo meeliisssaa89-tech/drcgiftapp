@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Edit, Trash2, Users, Gift, Crown } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Gift, Crown, Upload, X, Image } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DbGiveaway } from '@/hooks/useAdminData';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface GiveawaysTabProps {
   giveaways: DbGiveaway[];
@@ -32,11 +34,14 @@ interface ExtendedGiveaway extends DbGiveaway {
   telegram_gift_id?: string | null;
   telegram_gift_months?: number | null;
   telegram_gift_message?: string | null;
+  gift_image_url?: string | null;
 }
 
 export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: GiveawaysTabProps) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGiveaway, setEditingGiveaway] = useState<ExtendedGiveaway | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -51,6 +56,7 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
     telegram_gift_id: '',
     telegram_gift_months: 3,
     telegram_gift_message: '',
+    gift_image_url: '',
   });
 
   const openCreate = () => {
@@ -68,6 +74,7 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
       telegram_gift_id: '',
       telegram_gift_months: 3,
       telegram_gift_message: '',
+      gift_image_url: '',
     });
     setIsDialogOpen(true);
   };
@@ -87,8 +94,49 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
       telegram_gift_id: giveaway.telegram_gift_id || '',
       telegram_gift_months: giveaway.telegram_gift_months || 3,
       telegram_gift_message: giveaway.telegram_gift_message || '',
+      gift_image_url: giveaway.gift_image_url || '',
     });
     setIsDialogOpen(true);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image size must be less than 2MB');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `gifts/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('gifts')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('gifts')
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, gift_image_url: urlData.publicUrl });
+      toast.success('Image uploaded successfully!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData({ ...formData, gift_image_url: '' });
   };
 
   const handleSave = async () => {
@@ -102,6 +150,7 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
       start_at: new Date(formData.start_at).toISOString(),
       end_at: new Date(formData.end_at).toISOString(),
       is_active: formData.is_active,
+      gift_image_url: formData.gift_image_url || null,
     };
 
     // Add telegram gift fields if prize type is telegram
@@ -296,6 +345,56 @@ export const GiveawaysTab = ({ giveaways, onCreate, onUpdate, onDelete }: Giveaw
                   min="0"
                 />
               </div>
+            </div>
+
+            {/* Gift Image Upload */}
+            <div className="space-y-2">
+              <Label>Gift Image (optional)</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+              {formData.gift_image_url ? (
+                <div className="relative w-full aspect-video bg-secondary rounded-xl overflow-hidden">
+                  <img
+                    src={formData.gift_image_url}
+                    alt="Gift preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute top-2 right-2"
+                    onClick={removeImage}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-24 border-dashed flex flex-col gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <span>Uploading...</span>
+                  ) : (
+                    <>
+                      <Upload className="w-6 h-6" />
+                      <span className="text-sm">Upload Gift Image</span>
+                    </>
+                  )}
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Max size: 2MB. Recommended: 512x512px
+              </p>
             </div>
 
             {/* Telegram Gift Fields */}
