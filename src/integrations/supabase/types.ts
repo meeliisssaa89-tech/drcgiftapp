@@ -421,6 +421,88 @@ export type Database = {
           },
         ]
       }
+      telegram_gifts: {
+        Row: {
+          created_at: string
+          gift_id: string
+          id: string
+          message: string | null
+          recipient_telegram_id: number
+          sender_profile_id: string
+          stars_cost: number
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          gift_id: string
+          id?: string
+          message?: string | null
+          recipient_telegram_id: number
+          sender_profile_id: string
+          stars_cost: number
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          gift_id?: string
+          id?: string
+          message?: string | null
+          recipient_telegram_id?: number
+          sender_profile_id?: string
+          stars_cost?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_gifts_sender_profile_id_fkey"
+            columns: ["sender_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_star_deposits: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          crystals_credited: number
+          id: string
+          profile_id: string
+          stars_amount: number
+          status: string
+          telegram_payment_id: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          crystals_credited?: number
+          id?: string
+          profile_id: string
+          stars_amount: number
+          status?: string
+          telegram_payment_id: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          crystals_credited?: number
+          id?: string
+          profile_id?: string
+          stars_amount?: number
+          status?: string
+          telegram_payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_star_deposits_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
