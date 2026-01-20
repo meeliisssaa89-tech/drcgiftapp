@@ -61,6 +61,7 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
       currency: 'Currency Settings',
       web3: 'Web3 & Deposits',
       ton_deposit: 'TON Wallet Deposits',
+      telegram_stars: 'Telegram Stars',
     };
     return labels[key] || key.replace(/_/g, ' ');
   };
@@ -73,6 +74,8 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
         return <Wallet className="w-5 h-5 text-purple-400" />;
       case 'ton_deposit':
         return <Wallet className="w-5 h-5 text-blue-400" />;
+      case 'telegram_stars':
+        return <span className="text-xl">⭐</span>;
       default:
         return <Settings2 className="w-5 h-5 text-muted-foreground" />;
     }
@@ -359,6 +362,62 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     );
   };
 
+  const renderTelegramStarsSettings = (setting: DbGameSetting) => {
+    const value = getEditedValue(setting) as Record<string, unknown>;
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Switch
+            checked={(value.enabled as boolean) || false}
+            onCheckedChange={(checked) => handleChange(setting.id, 'enabled', checked)}
+          />
+          <Label>Enable Telegram Stars</Label>
+        </div>
+        
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Exchange Rate</Label>
+            <Input
+              type="number"
+              value={(value.exchange_rate as number) || 10}
+              onChange={(e) => handleChange(setting.id, 'exchange_rate', parseFloat(e.target.value) || 10)}
+              min="0.01"
+              step="0.01"
+            />
+            <p className="text-xs text-muted-foreground">1 ⭐ = X crystals</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Min Deposit (⭐)</Label>
+            <Input
+              type="number"
+              value={(value.min_deposit as number) || 10}
+              onChange={(e) => handleChange(setting.id, 'min_deposit', parseInt(e.target.value) || 10)}
+              min="1"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Max Deposit (⭐)</Label>
+            <Input
+              type="number"
+              value={(value.max_deposit as number) || 10000}
+              onChange={(e) => handleChange(setting.id, 'max_deposit', parseInt(e.target.value) || 10000)}
+              min="1"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={(value.gift_enabled as boolean) || false}
+            onCheckedChange={(checked) => handleChange(setting.id, 'gift_enabled', checked)}
+          />
+          <Label>Enable Gift Sending</Label>
+        </div>
+      </div>
+    );
+  };
+
   const renderSettingInput = (setting: DbGameSetting) => {
     // Special rendering for currency and web3 settings
     if (setting.key === 'currency') {
@@ -369,6 +428,9 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     }
     if (setting.key === 'ton_deposit') {
       return renderTonSettings(setting);
+    }
+    if (setting.key === 'telegram_stars') {
+      return renderTelegramStarsSettings(setting);
     }
 
     // Default rendering for other settings
@@ -399,9 +461,9 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     );
   };
 
-  // Sort settings to show currency, ton_deposit, and web3 first
+  // Sort settings to show currency, telegram_stars, ton_deposit, and web3 first
   const sortedSettings = [...settings].sort((a, b) => {
-    const order = ['currency', 'ton_deposit', 'web3'];
+    const order = ['currency', 'telegram_stars', 'ton_deposit', 'web3'];
     const aIndex = order.indexOf(a.key);
     const bIndex = order.indexOf(b.key);
     if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;

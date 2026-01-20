@@ -5,7 +5,7 @@ import { PlayPage } from '@/pages/PlayPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { LeadersPage } from '@/pages/LeadersPage';
 import { GiveawaysPage } from '@/pages/GiveawaysPage';
-import { TonDepositModal } from '@/components/TonDepositModal';
+import { DepositModal } from '@/components/DepositModal';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useProfile } from '@/hooks/useProfile';
 import { useGameData } from '@/hooks/useGameData';
@@ -89,8 +89,8 @@ const Index = () => {
       </main>
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} hasNewTasks={hasNewTasks} />
       
-      {/* TON Deposit Modal */}
-      <TonDepositModal 
+      {/* Deposit Modal */}
+      <DepositModal 
         isOpen={showDeposit} 
         onClose={() => setShowDeposit(false)} 
       />
