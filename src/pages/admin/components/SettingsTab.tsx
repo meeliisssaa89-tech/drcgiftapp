@@ -60,6 +60,7 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
       level_xp_multiplier: 'Level XP Multiplier',
       currency: 'Currency Settings',
       web3: 'Web3 & Deposits',
+      ton_deposit: 'TON Wallet Deposits',
     };
     return labels[key] || key.replace(/_/g, ' ');
   };
@@ -70,6 +71,8 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
         return <Coins className="w-5 h-5 text-primary" />;
       case 'web3':
         return <Wallet className="w-5 h-5 text-purple-400" />;
+      case 'ton_deposit':
+        return <Wallet className="w-5 h-5 text-blue-400" />;
       default:
         return <Settings2 className="w-5 h-5 text-muted-foreground" />;
     }
@@ -294,6 +297,68 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     );
   };
 
+  const renderTonSettings = (setting: DbGameSetting) => {
+    const value = getEditedValue(setting) as Record<string, unknown>;
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Switch
+            checked={(value.enabled as boolean) || false}
+            onCheckedChange={(checked) => handleChange(setting.id, 'enabled', checked)}
+          />
+          <Label>Enable TON Deposits</Label>
+        </div>
+        
+        <div className="space-y-2">
+          <Label>TON Deposit Address</Label>
+          <Input
+            value={(value.deposit_address as string) || ''}
+            onChange={(e) => handleChange(setting.id, 'deposit_address', e.target.value)}
+            placeholder="UQ... or EQ..."
+            className="font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Your TON wallet address to receive deposits
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Exchange Rate</Label>
+            <Input
+              type="number"
+              value={(value.exchange_rate as number) || 100}
+              onChange={(e) => handleChange(setting.id, 'exchange_rate', parseFloat(e.target.value) || 100)}
+              min="0.01"
+              step="0.01"
+            />
+            <p className="text-xs text-muted-foreground">1 TON = X crystals</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Min Deposit (TON)</Label>
+            <Input
+              type="number"
+              value={(value.min_deposit as number) || 0.1}
+              onChange={(e) => handleChange(setting.id, 'min_deposit', parseFloat(e.target.value) || 0.1)}
+              min="0.01"
+              step="0.01"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Max Deposit (TON)</Label>
+            <Input
+              type="number"
+              value={(value.max_deposit as number) || 1000}
+              onChange={(e) => handleChange(setting.id, 'max_deposit', parseInt(e.target.value) || 1000)}
+              min="1"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderSettingInput = (setting: DbGameSetting) => {
     // Special rendering for currency and web3 settings
     if (setting.key === 'currency') {
@@ -301,6 +366,9 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     }
     if (setting.key === 'web3') {
       return renderWeb3Settings(setting);
+    }
+    if (setting.key === 'ton_deposit') {
+      return renderTonSettings(setting);
     }
 
     // Default rendering for other settings
@@ -331,9 +399,9 @@ export const SettingsTab = ({ settings, onUpdate }: SettingsTabProps) => {
     );
   };
 
-  // Sort settings to show currency and web3 first
+  // Sort settings to show currency, ton_deposit, and web3 first
   const sortedSettings = [...settings].sort((a, b) => {
-    const order = ['currency', 'web3'];
+    const order = ['currency', 'ton_deposit', 'web3'];
     const aIndex = order.indexOf(a.key);
     const bIndex = order.indexOf(b.key);
     if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
