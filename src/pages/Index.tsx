@@ -5,7 +5,7 @@ import { PlayPage } from '@/pages/PlayPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { LeadersPage } from '@/pages/LeadersPage';
 import { GiveawaysPage } from '@/pages/GiveawaysPage';
-import { DepositPage } from '@/pages/DepositPage';
+import { TonDepositModal } from '@/components/TonDepositModal';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useProfile } from '@/hooks/useProfile';
 import { useGameData } from '@/hooks/useGameData';
@@ -59,10 +59,6 @@ const Index = () => {
   }
 
   const renderPage = () => {
-    if (showDeposit) {
-      return <DepositPage />;
-    }
-    
     switch (activeTab) {
       case 'leaders':
         return <LeadersPage />;
@@ -92,6 +88,12 @@ const Index = () => {
         {renderPage()}
       </main>
       <BottomNav activeTab={activeTab} onTabChange={handleTabChange} hasNewTasks={hasNewTasks} />
+      
+      {/* TON Deposit Modal */}
+      <TonDepositModal 
+        isOpen={showDeposit} 
+        onClose={() => setShowDeposit(false)} 
+      />
     </div>
   );
 };
