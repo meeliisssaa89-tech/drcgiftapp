@@ -121,14 +121,16 @@ export const usePvPGames = () => {
       if (err) {
         // Refund if game creation fails
         await addCrystals(betAmount);
-        throw err;
+        console.error('Supabase insert error:', err);
+        throw new Error(err?.message || 'Failed to insert game into database');
       }
 
       await fetchWaitingGames();
       return data;
     } catch (err) {
-      console.error('Error creating game:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create game');
+      const errorMsg = err instanceof Error ? err.message : JSON.stringify(err);
+      console.error('Error creating game:', errorMsg);
+      setError(errorMsg);
       return null;
     }
   }, [profile, deductCrystals, addCrystals, fetchWaitingGames]);
