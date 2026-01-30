@@ -30,13 +30,10 @@ const formatDate = (dateStr: string) => {
 };
 
 export const GiveawaysPage = () => {
-  const [activeTab, setActiveTab] = useState<'giveaways' | 'pvp'>('giveaways');
   const { giveaways, isLoading: giveawaysLoading } = useGameData();
   const { isParticipating, joinGiveaway, isLoading: participationLoading } = useGiveawayParticipation();
-  const { profile } = useProfile();
 
   const isLoading = giveawaysLoading || participationLoading;
-  const crystals = profile?.crystals ?? 0;
 
   const activeGiveaways = giveaways.filter((g) => {
     const now = new Date();
