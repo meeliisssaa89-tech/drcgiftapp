@@ -65,6 +65,8 @@ const Index = () => {
         return <LeadersPage />;
       case 'giveaways':
         return <GiveawaysPage />;
+      case 'pvp':
+        return <PvPGamesPage />;
       case 'play':
         return <PlayPage />;
       case 'tasks':
