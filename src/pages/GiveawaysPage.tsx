@@ -1,10 +1,7 @@
-import { useState } from 'react';
-import { Gift, Users, Calendar, Loader2, Trophy, Clock, Zap } from 'lucide-react';
+import { Gift, Users, Calendar, Loader2, Trophy, Clock } from 'lucide-react';
 import { useGameData } from '@/hooks/useGameData';
 import { useGiveawayParticipation } from '@/hooks/useGiveawayParticipation';
-import { useProfile } from '@/hooks/useProfile';
 import { CrystalBadge } from '@/components/CrystalIcon';
-import { PvPLobby } from '@/components/PvPLobby';
 import { cn } from '@/lib/utils';
 
 const formatTimeRemaining = (endDate: string) => {
