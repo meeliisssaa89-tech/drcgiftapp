@@ -189,6 +189,79 @@ export type Database = {
           },
         ]
       }
+      pvp_games: {
+        Row: {
+          id: string
+          player1_id: string
+          player2_id: string | null
+          player1_name: string
+          player2_name: string | null
+          player1_avatar: string | null
+          player2_avatar: string | null
+          bet_amount: number
+          player1_spin: number | null
+          player2_spin: number | null
+          winner_id: string | null
+          status: 'waiting' | 'ready' | 'spinning' | 'completed' | 'cancelled'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          player1_id: string
+          player2_id?: string | null
+          player1_name: string
+          player2_name?: string | null
+          player1_avatar?: string | null
+          player2_avatar?: string | null
+          bet_amount?: number
+          player1_spin?: number | null
+          player2_spin?: number | null
+          winner_id?: string | null
+          status?: 'waiting' | 'ready' | 'spinning' | 'completed' | 'cancelled'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          player1_id?: string
+          player2_id?: string | null
+          player1_name?: string
+          player2_name?: string | null
+          player1_avatar?: string | null
+          player2_avatar?: string | null
+          bet_amount?: number
+          player1_spin?: number | null
+          player2_spin?: number | null
+          winner_id?: string | null
+          status?: 'waiting' | 'ready' | 'spinning' | 'completed' | 'cancelled'
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pvp_games_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pvp_games_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pvp_games_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prizes: {
         Row: {
           created_at: string
