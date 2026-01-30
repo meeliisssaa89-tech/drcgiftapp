@@ -51,7 +51,7 @@ export const GiveawaysPage = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">Loading giveaways...</p>
       </div>
     );
   }
@@ -61,60 +61,16 @@ export const GiveawaysPage = () => {
       {/* Header */}
       <div className="flex flex-col items-center py-6">
         <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-3">
-          {activeTab === 'giveaways' ? (
-            <Gift className="w-8 h-8 text-primary" />
-          ) : (
-            <Zap className="w-8 h-8 text-primary" />
-          )}
+          <Gift className="w-8 h-8 text-primary" />
         </div>
-        <h1 className="text-xl font-bold">
-          {activeTab === 'giveaways' ? 'Giveaways' : 'PvP Challenges'}
-        </h1>
+        <h1 className="text-xl font-bold">Giveaways</h1>
         <p className="text-muted-foreground mt-1.5 text-sm text-center">
-          {activeTab === 'giveaways'
-            ? 'Participate in giveaways and win amazing prizes!'
-            : 'Play against other users and win coins!'}
+          Participate in giveaways and win amazing prizes!
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveTab('giveaways')}
-          className={cn(
-            'flex-1 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2',
-            activeTab === 'giveaways'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-muted-foreground'
-          )}
-        >
-          <Gift className="w-5 h-5" />
-          Giveaways
-        </button>
-        <button
-          onClick={() => setActiveTab('pvp')}
-          className={cn(
-            'flex-1 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2',
-            activeTab === 'pvp'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-secondary text-muted-foreground'
-          )}
-        >
-          <Zap className="w-5 h-5" />
-          PvP
-        </button>
-      </div>
-
-      {/* PvP Tab */}
-      {activeTab === 'pvp' && profile && (
-        <PvPLobby currentUserId={profile.id} currentBalance={crystals} />
-      )}
-
-      {/* Giveaways Tab */}
-      {activeTab === 'giveaways' && (
-        <>
-          {/* Active Giveaways */}
-          {activeGiveaways.length > 0 ? (
+      {/* Active Giveaways */}
+      {activeGiveaways.length > 0 ? (
         <div className="space-y-4">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <Trophy className="w-5 h-5 text-yellow-500" />
@@ -225,8 +181,8 @@ export const GiveawaysPage = () => {
         </div>
       )}
 
-          {/* Info Cards */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
+      {/* Info Cards */}
+      <div className="grid grid-cols-2 gap-3 mt-4">
         <div className="bg-card rounded-xl text-center py-4 px-3">
           <span className="text-2xl mb-1.5 block">🎯</span>
           <span className="text-xs text-muted-foreground">Weekly Draws</span>
@@ -242,10 +198,8 @@ export const GiveawaysPage = () => {
         <div className="bg-card rounded-xl text-center py-4 px-3">
           <span className="text-2xl mb-1.5 block">🎪</span>
           <span className="text-xs text-muted-foreground">Special Events</span>
-            </div>
-          </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 };
