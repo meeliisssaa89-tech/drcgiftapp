@@ -94,10 +94,18 @@ export const usePvPGames = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (err) throw err;
+      if (err) {
+        // Table doesn't exist yet - just show empty list
+        if (err.code === '42P01' || err.message?.includes('relation') || err.message?.includes('does not exist')) {
+          setMyGames([]);
+          return;
+        }
+        throw err;
+      }
       setMyGames(data || []);
     } catch (err) {
       console.error('Error fetching my games:', err);
+      setMyGames([]); // Gracefully fallback to empty list
     }
   }, [profile?.id]);
 
