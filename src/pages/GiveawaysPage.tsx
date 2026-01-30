@@ -1,20 +1,23 @@
-import { Gift, Users, Calendar, Loader2, Trophy, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Gift, Users, Calendar, Loader2, Trophy, Clock, Zap } from 'lucide-react';
 import { useGameData } from '@/hooks/useGameData';
 import { useGiveawayParticipation } from '@/hooks/useGiveawayParticipation';
+import { useProfile } from '@/hooks/useProfile';
 import { CrystalBadge } from '@/components/CrystalIcon';
+import { PvPLobby } from '@/components/PvPLobby';
 import { cn } from '@/lib/utils';
 
 const formatTimeRemaining = (endDate: string) => {
   const end = new Date(endDate);
   const now = new Date();
   const diff = end.getTime() - now.getTime();
-  
+
   if (diff <= 0) return 'Ended';
-  
+
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (days > 0) return `${days}d ${hours}h left`;
   if (hours > 0) return `${hours}h ${minutes}m left`;
   return `${minutes}m left`;
@@ -30,8 +33,10 @@ const formatDate = (dateStr: string) => {
 };
 
 export const GiveawaysPage = () => {
+  const [activeTab, setActiveTab] = useState<'giveaways' | 'pvp'>('giveaways');
   const { giveaways, isLoading: giveawaysLoading } = useGameData();
   const { isParticipating, joinGiveaway, isLoading: participationLoading } = useGiveawayParticipation();
+  const { profile } = useProfile();
 
   const isLoading = giveawaysLoading || participationLoading;
 
