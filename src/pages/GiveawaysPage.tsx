@@ -39,6 +39,7 @@ export const GiveawaysPage = () => {
   const { profile } = useProfile();
 
   const isLoading = giveawaysLoading || participationLoading;
+  const crystals = profile?.crystals ?? 0;
 
   const activeGiveaways = giveaways.filter((g) => {
     const now = new Date();
@@ -56,7 +57,7 @@ export const GiveawaysPage = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Loading giveaways...</p>
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
@@ -66,13 +67,54 @@ export const GiveawaysPage = () => {
       {/* Header */}
       <div className="flex flex-col items-center py-6">
         <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-3">
-          <Gift className="w-8 h-8 text-primary" />
+          {activeTab === 'giveaways' ? (
+            <Gift className="w-8 h-8 text-primary" />
+          ) : (
+            <Zap className="w-8 h-8 text-primary" />
+          )}
         </div>
-        <h1 className="text-xl font-bold">Giveaways</h1>
+        <h1 className="text-xl font-bold">
+          {activeTab === 'giveaways' ? 'Giveaways' : 'PvP Challenges'}
+        </h1>
         <p className="text-muted-foreground mt-1.5 text-sm text-center">
-          Participate in giveaways and win amazing prizes!
+          {activeTab === 'giveaways'
+            ? 'Participate in giveaways and win amazing prizes!'
+            : 'Play against other users and win coins!'}
         </p>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab('giveaways')}
+          className={cn(
+            'flex-1 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2',
+            activeTab === 'giveaways'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-muted-foreground'
+          )}
+        >
+          <Gift className="w-5 h-5" />
+          Giveaways
+        </button>
+        <button
+          onClick={() => setActiveTab('pvp')}
+          className={cn(
+            'flex-1 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2',
+            activeTab === 'pvp'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-muted-foreground'
+          )}
+        >
+          <Zap className="w-5 h-5" />
+          PvP
+        </button>
+      </div>
+
+      {/* PvP Tab */}
+      {activeTab === 'pvp' && profile && (
+        <PvPLobby currentUserId={profile.id} currentBalance={crystals} />
+      )}
 
       {/* Active Giveaways */}
       {activeGiveaways.length > 0 ? (
