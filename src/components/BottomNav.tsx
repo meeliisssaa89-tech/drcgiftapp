@@ -1,4 +1,4 @@
-import { Trophy, Gift, Dice5, Rocket, User } from 'lucide-react';
+import { Trophy, Gift, Dice5, Rocket, User, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BottomNavProps {
@@ -10,6 +10,7 @@ interface BottomNavProps {
 const navItems = [
   { id: 'leaders', label: 'Leaders', icon: Trophy },
   { id: 'giveaways', label: 'Giveaways', icon: Gift },
+  { id: 'pvp', label: 'PvP', icon: Zap },
   { id: 'play', label: 'Play', icon: Dice5 },
   { id: 'tasks', label: 'Tasks', icon: Rocket, hasBadge: true },
   { id: 'profile', label: 'Profile', icon: User },
