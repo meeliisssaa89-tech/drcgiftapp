@@ -52,11 +52,18 @@ export const usePvPGames = () => {
         .eq('status', 'waiting')
         .order('created_at', { ascending: true });
 
-      if (err) throw err;
+      if (err) {
+        // Table doesn't exist yet - just show empty list
+        if (err.code === '42P01' || err.message?.includes('relation') || err.message?.includes('does not exist')) {
+          setGames([]);
+          return;
+        }
+        throw err;
+      }
       setGames(data || []);
     } catch (err) {
       console.error('Error fetching waiting games:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load games');
+      setGames([]); // Gracefully fallback to empty list
     }
   }, []);
 
