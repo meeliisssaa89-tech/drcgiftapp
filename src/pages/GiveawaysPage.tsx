@@ -116,8 +116,11 @@ export const GiveawaysPage = () => {
         <PvPLobby currentUserId={profile.id} currentBalance={crystals} />
       )}
 
-      {/* Active Giveaways */}
-      {activeGiveaways.length > 0 ? (
+      {/* Giveaways Tab */}
+      {activeTab === 'giveaways' && (
+        <>
+          {/* Active Giveaways */}
+          {activeGiveaways.length > 0 ? (
         <div className="space-y-4">
           <h2 className="font-bold text-lg flex items-center gap-2">
             <Trophy className="w-5 h-5 text-yellow-500" />
@@ -228,8 +231,8 @@ export const GiveawaysPage = () => {
         </div>
       )}
 
-      {/* Info Cards */}
-      <div className="grid grid-cols-2 gap-3 mt-4">
+          {/* Info Cards */}
+          <div className="grid grid-cols-2 gap-3 mt-4">
         <div className="bg-card rounded-xl text-center py-4 px-3">
           <span className="text-2xl mb-1.5 block">🎯</span>
           <span className="text-xs text-muted-foreground">Weekly Draws</span>
@@ -245,8 +248,10 @@ export const GiveawaysPage = () => {
         <div className="bg-card rounded-xl text-center py-4 px-3">
           <span className="text-2xl mb-1.5 block">🎪</span>
           <span className="text-xs text-muted-foreground">Special Events</span>
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
