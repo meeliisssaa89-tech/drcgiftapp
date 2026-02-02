@@ -284,6 +284,48 @@ export type Database = {
           },
         ]
       }
+      pvp_games: {
+        Row: {
+          created_at: string
+          description: string | null
+          game_url: string | null
+          icon_emoji: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          sort_order: number
+          subtitle: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          game_url?: string | null
+          icon_emoji?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          subtitle?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          game_url?: string | null
+          icon_emoji?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          subtitle?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       referrals: {
         Row: {
           created_at: string
