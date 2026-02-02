@@ -4,7 +4,7 @@ import { ProfilePage } from '@/pages/ProfilePage';
 import { PlayPage } from '@/pages/PlayPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { LeadersPage } from '@/pages/LeadersPage';
-import { GiveawaysPage } from '@/pages/GiveawaysPage';
+import { PvPGamesPage } from '@/pages/PvPGamesPage';
 import { DepositModal } from '@/components/DepositModal';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useProfile } from '@/hooks/useProfile';
@@ -62,8 +62,8 @@ const Index = () => {
     switch (activeTab) {
       case 'leaders':
         return <LeadersPage />;
-      case 'giveaways':
-        return <GiveawaysPage />;
+      case 'pvp':
+        return <PvPGamesPage />;
       case 'play':
         return <PlayPage />;
       case 'tasks':

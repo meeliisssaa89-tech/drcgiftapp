@@ -13,6 +13,7 @@ import { PrizesTab } from './components/PrizesTab';
 import { GiveawaysTab } from './components/GiveawaysTab';
 import { SettingsTab } from './components/SettingsTab';
 import { HistoryTab } from './components/HistoryTab';
+import { PvPGamesTab } from './components/PvPGamesTab';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -173,6 +174,10 @@ export const AdminDashboard = () => {
             onUpdate={updateGiveaway}
             onDelete={deleteGiveaway}
           />
+        )}
+
+        {activeTab === 'pvp-games' && (
+          <PvPGamesTab />
         )}
 
         {activeTab === 'settings' && (
