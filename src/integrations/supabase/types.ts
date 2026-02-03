@@ -189,6 +189,115 @@ export type Database = {
           },
         ]
       }
+      ludo_chat_messages: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          message: string
+          message_type: string
+          sender_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          message: string
+          message_type?: string
+          sender_id: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          message?: string
+          message_type?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ludo_chat_messages_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "ludo_games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ludo_chat_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ludo_games: {
+        Row: {
+          created_at: string
+          current_turn: string | null
+          entry_fee: number
+          finished_at: string | null
+          game_state: Json
+          id: string
+          player1_id: string
+          player2_id: string | null
+          prize_pool: number
+          status: string
+          updated_at: string
+          winner_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_turn?: string | null
+          entry_fee?: number
+          finished_at?: string | null
+          game_state?: Json
+          id?: string
+          player1_id: string
+          player2_id?: string | null
+          prize_pool?: number
+          status?: string
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_turn?: string | null
+          entry_fee?: number
+          finished_at?: string | null
+          game_state?: Json
+          id?: string
+          player1_id?: string
+          player2_id?: string | null
+          prize_pool?: number
+          status?: string
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ludo_games_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ludo_games_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ludo_games_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prizes: {
         Row: {
           created_at: string

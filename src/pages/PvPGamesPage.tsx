@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Gamepad2 } from 'lucide-react';
 import { usePvPGames } from '@/hooks/usePvPGames';
 import { PvPGameCard } from '@/components/PvPGameCard';
@@ -5,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useTelegram } from '@/hooks/useTelegram';
 
 export const PvPGamesPage = () => {
+  const navigate = useNavigate();
   const { games, isLoading } = usePvPGames();
   const { hapticFeedback } = useTelegram();
 
@@ -12,13 +14,12 @@ export const PvPGamesPage = () => {
     hapticFeedback('medium');
     
     if (gameUrl) {
-      // For internal routes, we could use navigation
-      // For external games, open in WebView
-      if (gameUrl.startsWith('http')) {
+      // For internal routes, use navigation
+      if (gameUrl.startsWith('/')) {
+        navigate(gameUrl);
+      } else if (gameUrl.startsWith('http')) {
+        // For external games, open in new tab
         window.open(gameUrl, '_blank');
-      } else {
-        // Handle internal game routes - for now show coming soon
-        console.log('Opening game:', gameUrl);
       }
     }
   };
