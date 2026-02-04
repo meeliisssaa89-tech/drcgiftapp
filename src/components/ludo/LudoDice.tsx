@@ -3,90 +3,118 @@ import { cn } from '@/lib/utils';
 interface LudoDiceProps {
   value: number | null;
   isRolling: boolean;
-  isMyTurn: boolean;
   canRoll: boolean;
   onRoll: () => void;
 }
 
-const DiceFace = ({ value }: { value: number }) => {
-  const dotPositions: Record<number, string[]> = {
-    1: ['center'],
-    2: ['top-right', 'bottom-left'],
-    3: ['top-right', 'center', 'bottom-left'],
-    4: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-    5: ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'],
-    6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'],
-  };
-
-  const positionClasses: Record<string, string> = {
-    'top-left': 'top-2 left-2',
-    'top-right': 'top-2 right-2',
-    'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-    'middle-left': 'top-1/2 left-2 -translate-y-1/2',
-    'middle-right': 'top-1/2 right-2 -translate-y-1/2',
-    'bottom-left': 'bottom-2 left-2',
-    'bottom-right': 'bottom-2 right-2',
-  };
-
-  return (
-    <div className="relative w-16 h-16 bg-white rounded-xl shadow-lg">
-      {dotPositions[value]?.map((pos, idx) => (
-        <div
-          key={idx}
-          className={cn(
-            "absolute w-3 h-3 rounded-full bg-gray-900",
-            positionClasses[pos]
-          )}
-        />
-      ))}
-    </div>
-  );
+// Dice face dot patterns
+const DICE_PATTERNS: Record<number, number[][]> = {
+  1: [[1, 1]],
+  2: [[0, 0], [2, 2]],
+  3: [[0, 0], [1, 1], [2, 2]],
+  4: [[0, 0], [0, 2], [2, 0], [2, 2]],
+  5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]],
+  6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
 };
 
-export const LudoDice = ({ value, isRolling, isMyTurn, canRoll, onRoll }: LudoDiceProps) => {
+export const LudoDice = ({ value, isRolling, canRoll, onRoll }: LudoDiceProps) => {
+  const displayValue = value || 1;
+  const dots = DICE_PATTERNS[displayValue] || DICE_PATTERNS[1];
+
   return (
     <div className="flex flex-col items-center gap-4">
-      <div
-        className={cn(
-          "relative transition-transform duration-100",
-          isRolling && "animate-bounce"
-        )}
-      >
-        {value ? (
-          <DiceFace value={value} />
-        ) : (
-          <div className="w-16 h-16 bg-gradient-to-br from-gray-200 to-gray-300 rounded-xl shadow-lg flex items-center justify-center">
-            <span className="text-2xl">🎲</span>
-          </div>
-        )}
-        
-        {/* Rolling animation overlay */}
-        {isRolling && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-20 h-20 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        )}
-      </div>
-
+      {/* 3D Dice */}
       <button
         onClick={onRoll}
-        disabled={!canRoll || isRolling}
+        disabled={!canRoll}
         className={cn(
-          "px-8 py-3 rounded-xl font-semibold text-white transition-all duration-300",
-          "bg-gradient-to-r from-primary to-primary/80",
-          "shadow-lg shadow-primary/25",
-          canRoll && !isRolling
-            ? "hover:scale-105 hover:shadow-xl hover:shadow-primary/30 active:scale-95"
-            : "opacity-50 cursor-not-allowed"
+          "relative w-20 h-20 perspective-500 transition-all duration-200",
+          canRoll && "cursor-pointer hover:scale-105 active:scale-95",
+          !canRoll && "cursor-not-allowed opacity-60"
         )}
       >
-        {isRolling ? 'Rolling...' : isMyTurn ? 'Roll Dice' : "Opponent's Turn"}
+        <div
+          className={cn(
+            "absolute inset-0 bg-gradient-to-br from-white to-gray-100 rounded-2xl shadow-xl",
+            "border-4 border-gray-200 transform-gpu",
+            isRolling && "animate-bounce"
+          )}
+          style={{
+            transform: isRolling 
+              ? `rotateX(${Math.random() * 360}deg) rotateY(${Math.random() * 360}deg)` 
+              : 'rotateX(-10deg) rotateY(10deg)',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3), inset 0 -5px 10px rgba(0,0,0,0.1)',
+          }}
+        >
+          {/* Dice Face Grid */}
+          <div className="absolute inset-3 grid grid-cols-3 grid-rows-3 gap-1">
+            {[0, 1, 2].map((row) =>
+              [0, 1, 2].map((col) => {
+                const hasDot = dots.some(([r, c]) => r === row && c === col);
+                return (
+                  <div
+                    key={`${row}-${col}`}
+                    className="flex items-center justify-center"
+                  >
+                    {hasDot && (
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full bg-gradient-to-br shadow-inner",
+                          "from-gray-700 to-gray-900"
+                        )}
+                        style={{
+                          boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.3), 0 1px 2px rgba(0,0,0,0.3)',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+        
+        {/* Dice Shadow */}
+        <div 
+          className={cn(
+            "absolute -bottom-2 left-1/2 -translate-x-1/2 w-16 h-4 bg-black/20 rounded-full blur-md",
+            isRolling && "animate-pulse"
+          )}
+        />
       </button>
 
-      {value && !isRolling && (
-        <p className="text-sm text-muted-foreground animate-fade-in">
-          {value === 6 ? '🎉 Six! Roll again after moving' : `Select a token to move ${value} spaces`}
-        </p>
+      {/* Roll Button */}
+      <button
+        onClick={onRoll}
+        disabled={!canRoll}
+        className={cn(
+          "px-8 py-3 rounded-xl font-bold text-lg transition-all duration-300",
+          "relative overflow-hidden",
+          canRoll
+            ? "bg-gradient-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 hover:scale-105 active:scale-95"
+            : "bg-muted text-muted-foreground"
+        )}
+      >
+        <span className="relative z-10">
+          {isRolling ? '🎲 Rolling...' : canRoll ? '🎲 Roll Dice' : 'Wait...'}
+        </span>
+        {canRoll && !isRolling && (
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
+        )}
+      </button>
+
+      {/* Result Display */}
+      {value !== null && !isRolling && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-card/60 rounded-full border border-border/50">
+          <span className="text-muted-foreground text-sm">Rolled:</span>
+          <span className={cn(
+            "text-xl font-bold",
+            value === 6 ? "text-primary" : "text-foreground"
+          )}>
+            {value}
+          </span>
+          {value === 6 && <span className="text-sm">🎉</span>}
+        </div>
       )}
     </div>
   );

@@ -46,9 +46,9 @@ export interface ChatMessage {
 }
 
 // Ludo board positions
-// -1 = in home base, 0-55 = on board, 56-61 = in final stretch, 62 = finished
-export const BOARD_SIZE = 56;
-export const FINISH_POSITION = 62;
+// -1 = in home base, 0-51 = on board, 52-56 = in final stretch, 57 = finished
+export const BOARD_SIZE = 52;
+export const FINISH_POSITION = 57;
 export const SAFE_POSITIONS = [0, 8, 13, 21, 26, 34, 39, 47]; // Safe zones
 
 // Player start positions on the shared track
@@ -57,7 +57,7 @@ export const PLAYER_START: Record<string, number> = {
   red: 26,
 };
 
-// Entry to home stretch
+// Entry to home stretch (position before entering home)
 export const HOME_ENTRY: Record<string, number> = {
   blue: 50,
   red: 24,
@@ -65,13 +65,15 @@ export const HOME_ENTRY: Record<string, number> = {
 
 export const useLudoGame = (gameId?: string) => {
   const queryClient = useQueryClient();
-  const { profile, updateCrystals } = useProfile();
+  const { profile, refetch: refetchProfile } = useProfile();
   const { hapticFeedback } = useTelegram();
   const [isRolling, setIsRolling] = useState(false);
   const [diceValue, setDiceValue] = useState<number | null>(null);
   const [selectedToken, setSelectedToken] = useState<number | null>(null);
   const [validMoves, setValidMoves] = useState<number[]>([]);
+  const [hasMoved, setHasMoved] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const deductionRef = useRef<string | null>(null); // Track which game we've deducted for
 
   // Fetch current game
   const { data: game, isLoading, refetch } = useQuery({
@@ -125,8 +127,20 @@ export const useLudoGame = (gameId?: string) => {
           table: 'ludo_games',
           filter: `id=eq.${gameId}`,
         },
-        () => {
+        (payload) => {
+          console.log('Game update received:', payload);
           queryClient.invalidateQueries({ queryKey: ['ludo-game', gameId] });
+          // Reset dice state when turn changes
+          if (payload.new && payload.old) {
+            const newGame = payload.new as LudoGame;
+            const oldGame = payload.old as LudoGame;
+            if (newGame.current_turn !== oldGame.current_turn) {
+              setDiceValue(null);
+              setValidMoves([]);
+              setSelectedToken(null);
+              setHasMoved(false);
+            }
+          }
         }
       )
       .on(
@@ -153,12 +167,15 @@ export const useLudoGame = (gameId?: string) => {
   // Get player info
   const isPlayer1 = game?.player1_id === profile?.id;
   const isPlayer2 = game?.player2_id === profile?.id;
-  const isMyTurn = game?.current_turn === profile?.id;
+  const isMyTurn = game?.status === 'playing' && game?.current_turn === profile?.id;
   const myColor = isPlayer1 ? game?.game_state.player1_color : game?.game_state.player2_color;
   const myTokens = isPlayer1 ? game?.game_state.player1_tokens : game?.game_state.player2_tokens;
   const opponentTokens = isPlayer1 ? game?.game_state.player2_tokens : game?.game_state.player1_tokens;
 
-  // Find waiting games
+  // Check if dice can be rolled
+  const canRollDice = isMyTurn && !isRolling && diceValue === null && !hasMoved;
+
+  // Find or create game with proper queue matching
   const findWaitingGame = useMutation({
     mutationFn: async (entryFee: number) => {
       if (!profile) throw new Error('Not logged in');
@@ -168,13 +185,34 @@ export const useLudoGame = (gameId?: string) => {
         throw new Error('Not enough crystals');
       }
 
-      // Look for existing waiting game with same entry fee
+      // Check if user already has an active game
+      const { data: existingUserGame, error: existingError } = await supabase
+        .from('ludo_games')
+        .select('*')
+        .or(`player1_id.eq.${profile.id},player2_id.eq.${profile.id}`)
+        .in('status', ['waiting', 'playing'])
+        .maybeSingle();
+
+      if (existingError && existingError.code !== 'PGRST116') {
+        throw existingError;
+      }
+
+      if (existingUserGame) {
+        // Return existing game
+        return {
+          ...existingUserGame,
+          game_state: existingUserGame.game_state as unknown as LudoGameState,
+        } as LudoGame;
+      }
+
+      // Look for existing waiting game with same entry fee (not created by this user)
       const { data: existingGames, error: searchError } = await supabase
         .from('ludo_games')
         .select('*')
         .eq('status', 'waiting')
         .eq('entry_fee', entryFee)
         .neq('player1_id', profile.id)
+        .order('created_at', { ascending: true })
         .limit(1);
 
       if (searchError) throw searchError;
@@ -183,9 +221,24 @@ export const useLudoGame = (gameId?: string) => {
         // Join existing game
         const gameToJoin = existingGames[0];
         
-        // Deduct crystals
-        await updateCrystals(-entryFee);
+        // Deduct crystals from joining player FIRST
+        const newBalance = profile.crystals - entryFee;
+        if (newBalance < 0) {
+          throw new Error('Not enough crystals');
+        }
 
+        const { error: deductError } = await supabase
+          .from('profiles')
+          .update({ crystals: newBalance })
+          .eq('id', profile.id)
+          .eq('crystals', profile.crystals); // Optimistic locking
+
+        if (deductError) throw new Error('Failed to deduct crystals');
+        
+        // Track that we've deducted for this game
+        deductionRef.current = gameToJoin.id;
+
+        // Join the game
         const { data, error } = await supabase
           .from('ludo_games')
           .update({
@@ -195,14 +248,41 @@ export const useLudoGame = (gameId?: string) => {
             prize_pool: gameToJoin.entry_fee * 2,
           })
           .eq('id', gameToJoin.id)
+          .eq('status', 'waiting') // Ensure still waiting
           .select()
           .single();
 
-        if (error) throw error;
-        return data;
+        if (error) {
+          // Refund if join failed
+          await supabase
+            .from('profiles')
+            .update({ crystals: profile.crystals })
+            .eq('id', profile.id);
+          deductionRef.current = null;
+          throw error;
+        }
+
+        // Refresh profile to get updated balance
+        refetchProfile();
+        
+        return {
+          ...data,
+          game_state: data.game_state as unknown as LudoGameState,
+        } as LudoGame;
       } else {
         // Create new game
-        await updateCrystals(-entryFee);
+        const newBalance = profile.crystals - entryFee;
+        if (newBalance < 0) {
+          throw new Error('Not enough crystals');
+        }
+
+        const { error: deductError } = await supabase
+          .from('profiles')
+          .update({ crystals: newBalance })
+          .eq('id', profile.id)
+          .eq('crystals', profile.crystals); // Optimistic locking
+
+        if (deductError) throw new Error('Failed to deduct crystals');
 
         const { data, error } = await supabase
           .from('ludo_games')
@@ -211,17 +291,47 @@ export const useLudoGame = (gameId?: string) => {
             entry_fee: entryFee,
             prize_pool: entryFee,
             status: 'waiting',
+            game_state: {
+              player1_tokens: [-1, -1, -1, -1],
+              player2_tokens: [-1, -1, -1, -1],
+              player1_color: 'blue',
+              player2_color: 'red',
+              last_dice_roll: null,
+              consecutive_sixes: 0,
+              move_history: [],
+            },
           })
           .select()
           .single();
 
-        if (error) throw error;
-        return data;
+        if (error) {
+          // Refund if create failed
+          await supabase
+            .from('profiles')
+            .update({ crystals: profile.crystals })
+            .eq('id', profile.id);
+          throw error;
+        }
+
+        // Track deduction
+        deductionRef.current = data.id;
+        
+        // Refresh profile
+        refetchProfile();
+
+        return {
+          ...data,
+          game_state: data.game_state as unknown as LudoGameState,
+        } as LudoGame;
       }
     },
     onSuccess: (game) => {
       hapticFeedback('success');
-      toast.success(game.status === 'waiting' ? 'Waiting for opponent...' : 'Game started!');
+      if (game.status === 'waiting') {
+        toast.success('Waiting for opponent...');
+      } else {
+        toast.success('Match found! Game started!');
+      }
     },
     onError: (error: Error) => {
       hapticFeedback('error');
@@ -235,6 +345,9 @@ export const useLudoGame = (gameId?: string) => {
 
     const currentPos = myTokens[tokenIndex];
     
+    // Token already finished
+    if (currentPos === FINISH_POSITION) return false;
+    
     // Token in home base - can only move out with 6
     if (currentPos === -1) {
       return dice === 6;
@@ -242,24 +355,30 @@ export const useLudoGame = (gameId?: string) => {
 
     // Calculate new position
     const startPos = PLAYER_START[myColor];
-    const homeEntry = HOME_ENTRY[myColor];
+    const homeEntryPos = HOME_ENTRY[myColor];
     
-    // Convert to relative position (from player's start)
-    let relativePos = (currentPos - startPos + BOARD_SIZE) % BOARD_SIZE;
-    let newRelativePos = relativePos + dice;
+    // Calculate relative position (steps from start)
+    let relativePos: number;
+    if (currentPos >= 52) {
+      // Already in home stretch
+      relativePos = 51 + (currentPos - 51);
+    } else {
+      relativePos = (currentPos - startPos + BOARD_SIZE) % BOARD_SIZE;
+    }
+    
+    const newRelativePos = relativePos + dice;
 
-    // Check if entering home stretch
-    if (relativePos <= 50 && newRelativePos > 50) {
-      const homeProgress = newRelativePos - 50;
-      if (homeProgress > 6) return false; // Can't overshoot
-      return true;
+    // Check if entering or in home stretch
+    if (currentPos >= 52) {
+      // Already in home stretch - can only move if won't overshoot
+      const homeProgress = currentPos - 51 + dice;
+      return homeProgress <= 6; // 6 steps in home stretch
     }
 
-    // Already in home stretch
-    if (currentPos >= 56) {
-      const homeProgress = currentPos - 56 + dice;
-      if (homeProgress > 6) return false; // Can't overshoot
-      return true;
+    // Check if would enter home stretch
+    if (relativePos < 51 && newRelativePos >= 51) {
+      const homeProgress = newRelativePos - 50;
+      return homeProgress <= 6;
     }
 
     return true;
@@ -267,7 +386,10 @@ export const useLudoGame = (gameId?: string) => {
 
   // Roll dice
   const rollDice = useCallback(async () => {
-    if (!game || !isMyTurn || isRolling) return;
+    if (!game || !canRollDice) {
+      console.log('Cannot roll dice:', { game: !!game, canRollDice });
+      return;
+    }
 
     setIsRolling(true);
     hapticFeedback('medium');
@@ -297,13 +419,16 @@ export const useLudoGame = (gameId?: string) => {
         });
         setValidMoves(moves);
 
-        // If no valid moves, pass turn
+        console.log('Dice rolled:', finalValue, 'Valid moves:', moves);
+
+        // If no valid moves, pass turn after delay
         if (moves.length === 0) {
+          toast.info('No valid moves available');
           setTimeout(() => passTurn(finalValue), 1500);
         }
       }
     }, rollInterval);
-  }, [game, isMyTurn, isRolling, myTokens, hapticFeedback, calculateValidMoves]);
+  }, [game, canRollDice, myTokens, hapticFeedback, calculateValidMoves]);
 
   // Pass turn to opponent
   const passTurn = async (dice: number) => {
@@ -320,9 +445,10 @@ export const useLudoGame = (gameId?: string) => {
     // Three consecutive sixes = lose turn
     if (newState.consecutive_sixes >= 3) {
       newState.consecutive_sixes = 0;
+      toast.info('Three 6s! Lost your turn');
     }
 
-    await supabase
+    const { error } = await supabase
       .from('ludo_games')
       .update({
         current_turn: nextTurn,
@@ -330,9 +456,12 @@ export const useLudoGame = (gameId?: string) => {
       })
       .eq('id', game.id);
 
-    setDiceValue(null);
-    setValidMoves([]);
-    setSelectedToken(null);
+    if (!error) {
+      setDiceValue(null);
+      setValidMoves([]);
+      setSelectedToken(null);
+      setHasMoved(true);
+    }
   };
 
   // Move token
@@ -344,24 +473,25 @@ export const useLudoGame = (gameId?: string) => {
 
       const currentPos = myTokens[tokenIndex];
       let newPos: number;
+      const startPos = PLAYER_START[myColor];
 
       if (currentPos === -1) {
-        // Move out of home base
-        newPos = PLAYER_START[myColor];
-      } else if (currentPos >= 56) {
+        // Move out of home base to start position
+        newPos = startPos;
+      } else if (currentPos >= 52) {
         // In home stretch
         newPos = currentPos + diceValue;
         if (newPos > FINISH_POSITION) newPos = FINISH_POSITION;
       } else {
         // On main track
-        const startPos = PLAYER_START[myColor];
-        const homeEntry = HOME_ENTRY[myColor];
         let relativePos = (currentPos - startPos + BOARD_SIZE) % BOARD_SIZE;
         let newRelativePos = relativePos + diceValue;
 
-        if (newRelativePos > 50) {
+        if (newRelativePos >= 51) {
           // Enter home stretch
-          newPos = 56 + (newRelativePos - 51);
+          const homeProgress = newRelativePos - 50;
+          newPos = 51 + homeProgress;
+          if (newPos > FINISH_POSITION) newPos = FINISH_POSITION;
         } else {
           newPos = (startPos + newRelativePos) % BOARD_SIZE;
         }
@@ -371,12 +501,15 @@ export const useLudoGame = (gameId?: string) => {
       const newTokens = [...myTokens];
       newTokens[tokenIndex] = newPos;
 
-      // Check for capture (if landing on opponent token on main track)
+      // Check for capture (if landing on opponent token on main track, not safe)
       let opponentNewTokens = [...(opponentTokens || [])];
-      if (newPos < 56 && !SAFE_POSITIONS.includes(newPos)) {
-        opponentNewTokens = opponentNewTokens.map(pos => 
-          pos === newPos ? -1 : pos // Send captured token home
-        );
+      if (newPos < 52 && newPos !== startPos && !SAFE_POSITIONS.includes(newPos)) {
+        const capturedIndex = opponentNewTokens.findIndex(pos => pos === newPos);
+        if (capturedIndex !== -1) {
+          opponentNewTokens[capturedIndex] = -1; // Send captured token home
+          toast.success('Captured opponent token!');
+          hapticFeedback('success');
+        }
       }
 
       // Check for win
@@ -405,9 +538,23 @@ export const useLudoGame = (gameId?: string) => {
       // Determine next turn
       let nextTurn = game.player1_id === profile.id ? game.player2_id : game.player1_id;
       
-      // Keep turn if rolled 6 and under 3 consecutive
-      if (diceValue === 6 && newState.consecutive_sixes < 3) {
+      // Keep turn if rolled 6 (and under 3 consecutive) or captured
+      const capturedOpponent = opponentNewTokens.some((pos, idx) => 
+        pos === -1 && opponentTokens?.[idx] !== -1
+      );
+      
+      if ((diceValue === 6 && newState.consecutive_sixes < 3) || capturedOpponent) {
         nextTurn = profile.id;
+        if (diceValue === 6) {
+          toast.info('Rolled 6! Roll again');
+        }
+      }
+
+      // Three consecutive 6s = lose turn
+      if (newState.consecutive_sixes >= 3) {
+        newState.consecutive_sixes = 0;
+        nextTurn = game.player1_id === profile.id ? game.player2_id : game.player1_id;
+        toast.info('Three 6s! Lost your turn');
       }
 
       // Update game
@@ -431,19 +578,33 @@ export const useLudoGame = (gameId?: string) => {
 
       // Award crystals if won
       if (isWin && game.prize_pool) {
-        // Deduct house fee (5%)
-        const winnings = Math.floor(game.prize_pool * 0.95);
-        await updateCrystals(winnings);
-        toast.success(`You won ${winnings} crystals! 🎉`);
+        const winnings = Math.floor(game.prize_pool * 0.95); // 5% house fee
+        const { error: winError } = await supabase
+          .from('profiles')
+          .update({ crystals: (profile.crystals || 0) + winnings })
+          .eq('id', profile.id);
+        
+        if (!winError) {
+          toast.success(`You won ${winnings} crystals! 🎉`);
+          refetchProfile();
+        }
       }
 
-      return { newPos, isWin };
+      return { newPos, isWin, keepTurn: nextTurn === profile.id };
     },
-    onSuccess: ({ isWin }) => {
+    onSuccess: ({ isWin, keepTurn }) => {
       hapticFeedback(isWin ? 'success' : 'medium');
-      setDiceValue(null);
       setValidMoves([]);
       setSelectedToken(null);
+      
+      if (keepTurn) {
+        setDiceValue(null);
+        setHasMoved(false);
+      } else {
+        setDiceValue(null);
+        setHasMoved(true);
+      }
+      
       refetch();
     },
     onError: (error: Error) => {
@@ -470,23 +631,112 @@ export const useLudoGame = (gameId?: string) => {
     },
   });
 
-  // Cancel/leave game
+  // Cancel/leave game - only refunds if waiting
   const cancelGame = useMutation({
     mutationFn: async () => {
       if (!game || !profile) throw new Error('Invalid state');
 
-      if (game.status === 'waiting') {
+      if (game.status === 'waiting' && game.player1_id === profile.id) {
+        // Only creator can cancel waiting game
         // Refund crystals
-        await updateCrystals(game.entry_fee);
+        const { error: refundError } = await supabase
+          .from('profiles')
+          .update({ crystals: (profile.crystals || 0) + game.entry_fee })
+          .eq('id', profile.id);
         
+        if (refundError) {
+          console.error('Refund error:', refundError);
+        }
+
         await supabase
           .from('ludo_games')
           .update({ status: 'cancelled' })
           .eq('id', game.id);
+        
+        deductionRef.current = null;
+        refetchProfile();
+      } else if (game.status === 'playing') {
+        // Forfeit - opponent wins
+        const opponentId = game.player1_id === profile.id ? game.player2_id : game.player1_id;
+        
+        await supabase
+          .from('ludo_games')
+          .update({ 
+            status: 'finished',
+            winner_id: opponentId,
+            finished_at: new Date().toISOString(),
+          })
+          .eq('id', game.id);
+
+        // Award prize to opponent
+        if (opponentId && game.prize_pool) {
+          const winnings = Math.floor(game.prize_pool * 0.95);
+          const { data: opponent } = await supabase
+            .from('profiles')
+            .select('crystals')
+            .eq('id', opponentId)
+            .single();
+          
+          if (opponent) {
+            await supabase
+              .from('profiles')
+              .update({ crystals: opponent.crystals + winnings })
+              .eq('id', opponentId);
+          }
+        }
+
+        toast.info('You forfeited the game');
       }
     },
     onSuccess: () => {
-      toast.success('Game cancelled, crystals refunded');
+      if (game?.status === 'waiting') {
+        toast.success('Game cancelled, crystals refunded');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Forfeit game
+  const forfeitGame = useMutation({
+    mutationFn: async () => {
+      if (!game || !profile || game.status !== 'playing') {
+        throw new Error('Cannot forfeit');
+      }
+
+      const opponentId = game.player1_id === profile.id ? game.player2_id : game.player1_id;
+      
+      const { error } = await supabase
+        .from('ludo_games')
+        .update({ 
+          status: 'finished',
+          winner_id: opponentId,
+          finished_at: new Date().toISOString(),
+        })
+        .eq('id', game.id);
+
+      if (error) throw error;
+
+      // Award prize to opponent
+      if (opponentId && game.prize_pool) {
+        const winnings = Math.floor(game.prize_pool * 0.95);
+        const { data: opponent } = await supabase
+          .from('profiles')
+          .select('crystals')
+          .eq('id', opponentId)
+          .single();
+        
+        if (opponent) {
+          await supabase
+            .from('profiles')
+            .update({ crystals: opponent.crystals + winnings })
+            .eq('id', opponentId);
+        }
+      }
+    },
+    onSuccess: () => {
+      toast.info('You forfeited the game');
     },
   });
 
@@ -504,12 +754,14 @@ export const useLudoGame = (gameId?: string) => {
     diceValue,
     selectedToken,
     validMoves,
+    canRollDice,
     setSelectedToken,
     rollDice,
     moveToken: moveToken.mutate,
     sendMessage: sendMessage.mutate,
     findWaitingGame: findWaitingGame.mutateAsync,
     cancelGame: cancelGame.mutate,
+    forfeitGame: forfeitGame.mutate,
     isFindingGame: findWaitingGame.isPending,
   };
 };
