@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useLudoGame } from '@/hooks/useLudoGame';
 import { useProfile } from '@/hooks/useProfile';
 import { LudoMatchmaking } from '@/components/ludo/LudoMatchmaking';
@@ -22,16 +24,77 @@ export const LudoGamePage = () => {
     diceValue,
     selectedToken,
     validMoves,
+    canRollDice,
     setSelectedToken,
     rollDice,
     moveToken,
     sendMessage,
     findWaitingGame,
     cancelGame,
+    forfeitGame,
     isFindingGame,
   } = useLudoGame(gameId || undefined);
 
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedEntryFee, setSelectedEntryFee] = useState(50);
+
+  // Fetch player profiles for display
+  const { data: player1Profile } = useQuery({
+    queryKey: ['profile', game?.player1_id],
+    queryFn: async () => {
+      if (!game?.player1_id) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, avatar_url')
+        .eq('id', game.player1_id)
+        .single();
+      return data;
+    },
+    enabled: !!game?.player1_id,
+  });
+
+  const { data: player2Profile } = useQuery({
+    queryKey: ['profile', game?.player2_id],
+    queryFn: async () => {
+      if (!game?.player2_id) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, username, first_name, avatar_url')
+        .eq('id', game.player2_id)
+        .single();
+      return data;
+    },
+    enabled: !!game?.player2_id,
+  });
+
+  // Get win counts for ranking
+  const { data: player1Wins } = useQuery({
+    queryKey: ['wins', game?.player1_id],
+    queryFn: async () => {
+      if (!game?.player1_id) return 0;
+      const { count } = await supabase
+        .from('ludo_games')
+        .select('*', { count: 'exact', head: true })
+        .eq('winner_id', game.player1_id)
+        .eq('status', 'finished');
+      return count || 0;
+    },
+    enabled: !!game?.player1_id,
+  });
+
+  const { data: player2Wins } = useQuery({
+    queryKey: ['wins', game?.player2_id],
+    queryFn: async () => {
+      if (!game?.player2_id) return 0;
+      const { count } = await supabase
+        .from('ludo_games')
+        .select('*', { count: 'exact', head: true })
+        .eq('winner_id', game.player2_id)
+        .eq('status', 'finished');
+      return count || 0;
+    },
+    enabled: !!game?.player2_id,
+  });
 
   // Handle game found
   useEffect(() => {
@@ -49,6 +112,7 @@ export const LudoGamePage = () => {
   }, [game?.status, isSearching]);
 
   const handleFindGame = async (entryFee: number) => {
+    setSelectedEntryFee(entryFee);
     setIsSearching(true);
     try {
       const newGame = await findWaitingGame(entryFee);
@@ -77,7 +141,7 @@ export const LudoGamePage = () => {
     if (game?.status === 'waiting') {
       cancelGame();
     }
-    navigate('/');
+    navigate('/pvp-games');
   };
 
   const handleTokenClick = (tokenIndex: number) => {
@@ -105,7 +169,7 @@ export const LudoGamePage = () => {
     // Waiting for opponent
     if (game.status === 'waiting') {
       return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in px-4 pt-4">
           <button
             onClick={handleBack}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -119,6 +183,8 @@ export const LudoGamePage = () => {
             isSearching={true}
             onFindGame={handleFindGame}
             onCancel={handleCancel}
+            player1Profile={player1Profile}
+            player2Profile={player2Profile}
           />
         </div>
       );
@@ -126,27 +192,33 @@ export const LudoGamePage = () => {
 
     // Active game
     return (
-      <LudoGameView
-        game={game}
-        messages={messages}
-        myId={profile?.id || ''}
-        isMyTurn={isMyTurn}
-        myColor={myColor}
-        isRolling={isRolling}
-        diceValue={diceValue}
-        selectedToken={selectedToken}
-        validMoves={validMoves}
-        onBack={handleBack}
-        onRollDice={rollDice}
-        onTokenClick={handleTokenClick}
-        onSendMessage={sendMessage}
-      />
+      <div className="px-4 pt-4">
+        <LudoGameView
+          game={game}
+          messages={messages}
+          myId={profile?.id || ''}
+          isMyTurn={isMyTurn}
+          myColor={myColor}
+          isRolling={isRolling}
+          diceValue={diceValue}
+          selectedToken={selectedToken}
+          validMoves={validMoves}
+          canRollDice={canRollDice}
+          player1Info={player1Profile ? { ...player1Profile, wins: player1Wins || 0 } : null}
+          player2Info={player2Profile ? { ...player2Profile, wins: player2Wins || 0 } : null}
+          onBack={handleBack}
+          onRollDice={rollDice}
+          onTokenClick={handleTokenClick}
+          onSendMessage={sendMessage}
+          onForfeit={forfeitGame}
+        />
+      </div>
     );
   }
 
   // Matchmaking screen
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in px-4 pt-4">
       <button
         onClick={handleBack}
         className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -160,6 +232,11 @@ export const LudoGamePage = () => {
         isSearching={isSearching || isFindingGame}
         onFindGame={handleFindGame}
         onCancel={handleCancel}
+        player1Profile={profile ? { 
+          username: profile.username, 
+          first_name: profile.first_name, 
+          avatar_url: profile.avatar_url 
+        } : null}
       />
     </div>
   );

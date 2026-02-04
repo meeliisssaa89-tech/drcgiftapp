@@ -12,71 +12,27 @@ interface LudoBoardProps {
   onTokenClick: (tokenIndex: number) => void;
 }
 
-// Board cell positions - maps position numbers to grid coordinates
-const CELL_POSITIONS: Record<number, { row: number; col: number }> = {};
-
-// Generate main track positions (simplified 2-player board)
-// The board is 15x15 grid
-// Blue starts bottom, Red starts top
-const generatePositions = () => {
-  // Main track - goes around the outside
-  // Bottom row (left to right) - positions 0-6
-  for (let i = 0; i <= 6; i++) {
-    CELL_POSITIONS[i] = { row: 13, col: 6 + i };
-  }
-  // Right column (bottom to top) - positions 7-12
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[7 + i] = { row: 12 - i, col: 13 };
-  }
-  // Top right corner - position 13
-  CELL_POSITIONS[13] = { row: 6, col: 13 };
-  // Top row (right to left) - positions 14-20
-  for (let i = 0; i <= 6; i++) {
-    CELL_POSITIONS[14 + i] = { row: 6, col: 12 - i };
-  }
-  // Left column going down at top
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[21 + i] = { row: 7 + i, col: 6 };
-  }
-  // Red start area - position 26
-  CELL_POSITIONS[26] = { row: 1, col: 7 };
-  // Continue track...
-  // Top row left side
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[27 + i] = { row: 1, col: 6 - i };
-  }
-  // Left column (top to bottom)
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[33 + i] = { row: 2 + i, col: 1 };
-  }
-  // Bottom left corner
-  CELL_POSITIONS[39] = { row: 8, col: 1 };
-  // Bottom row (left to right)
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[40 + i] = { row: 8, col: 2 + i };
-  }
-  // Center column going up
-  for (let i = 0; i <= 5; i++) {
-    CELL_POSITIONS[46 + i] = { row: 7 - i, col: 7 };
-  }
-  // Continue around
-  for (let i = 0; i <= 3; i++) {
-    CELL_POSITIONS[52 + i] = { row: 14 - i, col: 7 };
-  }
-};
-
-generatePositions();
-
 // Token colors with gradients
-const TOKEN_COLORS: Record<string, string> = {
-  blue: 'from-blue-400 to-blue-600',
-  red: 'from-red-400 to-red-600',
+const TOKEN_COLORS: Record<string, { bg: string; border: string; glow: string }> = {
+  blue: {
+    bg: 'from-blue-400 to-blue-600',
+    border: 'border-blue-300',
+    glow: 'shadow-blue-500/50',
+  },
+  red: {
+    bg: 'from-red-400 to-red-600',
+    border: 'border-red-300',
+    glow: 'shadow-red-500/50',
+  },
 };
 
-const TOKEN_GLOW: Record<string, string> = {
-  blue: 'shadow-blue-500/50',
-  red: 'shadow-red-500/50',
-};
+// Home base positions for 4 tokens (2x2 grid within each base)
+const HOME_TOKEN_POSITIONS = [
+  { row: 0, col: 0 },
+  { row: 0, col: 1 },
+  { row: 1, col: 0 },
+  { row: 1, col: 1 },
+];
 
 export const LudoBoard = ({
   player1Tokens,
@@ -89,144 +45,188 @@ export const LudoBoard = ({
   myColor,
   onTokenClick,
 }: LudoBoardProps) => {
-  const renderToken = (
-    position: number,
-    color: string,
+  
+  const renderHomeToken = (
     tokenIndex: number,
-    isPlayer1: boolean
+    color: string,
+    isP1: boolean
   ) => {
+    const tokens = isP1 ? player1Tokens : player2Tokens;
+    const position = tokens[tokenIndex];
+    
+    // Only render tokens that are in home base (-1)
+    if (position !== -1) return null;
+    
+    const tokenPos = HOME_TOKEN_POSITIONS[tokenIndex];
     const isSelectable = isMyTurn && myColor === color && validMoves.includes(tokenIndex);
     const isSelected = selectedToken === tokenIndex && myColor === color;
-
-    // Token in home base
-    if (position === -1) {
-      return null; // Render in home base area instead
-    }
-
-    const cellPos = CELL_POSITIONS[position];
-    if (!cellPos) return null;
+    const colors = TOKEN_COLORS[color];
 
     return (
-      <div
-        key={`${color}-${tokenIndex}`}
+      <button
+        key={`home-${color}-${tokenIndex}`}
+        onClick={() => isSelectable && onTokenClick(tokenIndex)}
+        disabled={!isSelectable}
         className={cn(
-          "absolute w-6 h-6 rounded-full cursor-pointer transition-all duration-300",
-          "bg-gradient-to-br shadow-lg",
-          TOKEN_COLORS[color],
-          isSelectable && "animate-pulse ring-2 ring-white ring-opacity-75",
-          isSelected && `ring-4 ring-white scale-125 ${TOKEN_GLOW[color]} shadow-xl`,
-          !isSelectable && !isSelected && "opacity-90"
+          "absolute w-8 h-8 rounded-full transition-all duration-300",
+          "bg-gradient-to-br shadow-lg border-2",
+          colors.bg,
+          colors.border,
+          isSelectable && "animate-pulse ring-2 ring-white/80 scale-110 cursor-pointer",
+          isSelected && `ring-4 ring-white scale-125 ${colors.glow} shadow-xl z-20`,
+          !isSelectable && "opacity-80 cursor-default"
         )}
         style={{
-          top: `${(cellPos.row / 15) * 100}%`,
-          left: `${(cellPos.col / 15) * 100}%`,
-          transform: 'translate(-50%, -50%)',
-          zIndex: isSelected ? 20 : 10,
+          top: `${20 + tokenPos.row * 40}%`,
+          left: `${20 + tokenPos.col * 40}%`,
         }}
-        onClick={() => isSelectable && onTokenClick(tokenIndex)}
       >
-        <div className="absolute inset-1 rounded-full bg-white/20" />
-        <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold">
+        <div className="absolute inset-1 rounded-full bg-white/30" />
+        <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold drop-shadow-md">
           {tokenIndex + 1}
         </span>
-      </div>
+      </button>
     );
   };
 
-  const renderHomeBase = (tokens: number[], color: string, isTop: boolean) => {
-    const homeTokens = tokens
-      .map((pos, idx) => ({ pos, idx }))
-      .filter(t => t.pos === -1);
+  const renderBoardToken = (
+    tokenIndex: number,
+    color: string,
+    isP1: boolean
+  ) => {
+    const tokens = isP1 ? player1Tokens : player2Tokens;
+    const position = tokens[tokenIndex];
+    
+    // Only render tokens on the board (0-57, not in home base -1)
+    if (position < 0) return null;
+    
+    const isSelectable = isMyTurn && myColor === color && validMoves.includes(tokenIndex);
+    const isSelected = selectedToken === tokenIndex && myColor === color;
+    const colors = TOKEN_COLORS[color];
+
+    // Calculate visual position on the simplified board
+    // This is a simplified representation
+    const getTokenPosition = (pos: number, playerColor: string) => {
+      // Finished tokens
+      if (pos === 57) {
+        return { top: 50, left: 50 }; // Center
+      }
+      
+      // Home stretch (52-56)
+      if (pos >= 52) {
+        const homeStep = pos - 51;
+        if (playerColor === 'blue') {
+          return { top: 50, left: 10 + homeStep * 7 };
+        } else {
+          return { top: 50, left: 90 - homeStep * 7 };
+        }
+      }
+      
+      // Main track - simplified circular representation
+      const angle = (pos / 52) * 360;
+      const radius = 38;
+      const centerX = 50;
+      const centerY = 50;
+      
+      const radians = (angle - 90) * (Math.PI / 180);
+      const x = centerX + radius * Math.cos(radians);
+      const y = centerY + radius * Math.sin(radians);
+      
+      return { top: y, left: x };
+    };
+
+    const posCoords = getTokenPosition(position, color);
 
     return (
-      <div
+      <button
+        key={`board-${color}-${tokenIndex}`}
+        onClick={() => isSelectable && onTokenClick(tokenIndex)}
+        disabled={!isSelectable}
         className={cn(
-          "absolute flex flex-wrap gap-2 p-3",
-          isTop ? "top-2 right-2" : "bottom-2 left-2"
+          "absolute w-7 h-7 rounded-full transition-all duration-300 -translate-x-1/2 -translate-y-1/2",
+          "bg-gradient-to-br shadow-lg border-2 z-10",
+          colors.bg,
+          colors.border,
+          isSelectable && "animate-pulse ring-2 ring-white/80 scale-110 cursor-pointer z-20",
+          isSelected && `ring-4 ring-white scale-125 ${colors.glow} shadow-xl z-30`,
+          !isSelectable && "opacity-90 cursor-default"
         )}
+        style={{
+          top: `${posCoords.top}%`,
+          left: `${posCoords.left}%`,
+        }}
       >
-        {homeTokens.map(({ idx }) => {
-          const isSelectable = isMyTurn && myColor === color && validMoves.includes(idx);
-          return (
-            <button
-              key={idx}
-              onClick={() => isSelectable && onTokenClick(idx)}
-              className={cn(
-                "w-8 h-8 rounded-full bg-gradient-to-br transition-all duration-300",
-                TOKEN_COLORS[color],
-                "shadow-lg",
-                isSelectable && "animate-pulse ring-2 ring-white scale-110",
-                !isSelectable && "opacity-60"
-              )}
-            >
-              <span className="text-white text-sm font-bold">{idx + 1}</span>
-            </button>
-          );
-        })}
-      </div>
+        <div className="absolute inset-1 rounded-full bg-white/30" />
+        <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow-md">
+          {tokenIndex + 1}
+        </span>
+      </button>
     );
   };
 
+  // Count tokens in each base
+  const blueHomeCount = player1Tokens.filter(p => p === -1).length;
+  const redHomeCount = player2Tokens.filter(p => p === -1).length;
+
   return (
-    <div className="relative w-full aspect-square max-w-[400px] mx-auto">
+    <div className="relative w-full aspect-square max-w-[380px] mx-auto">
       {/* Board Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-amber-900/80 to-amber-950/90 rounded-2xl border-4 border-amber-700/50 shadow-2xl overflow-hidden">
-        {/* Grid Pattern */}
-        <div className="absolute inset-0 opacity-20">
-          <svg className="w-full h-full">
-            <defs>
-              <pattern id="grid" width="6.67%" height="6.67%" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 100 0 L 0 0 0 100"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="0.5"
-                />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-          </svg>
-        </div>
-
-        {/* Center Diamond */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rotate-45 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded shadow-lg">
-          <div className="absolute inset-2 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded" />
-        </div>
-
-        {/* Home Bases */}
-        {/* Blue Home (bottom-left) */}
-        <div className="absolute bottom-4 left-4 w-24 h-24 bg-blue-900/60 rounded-xl border-2 border-blue-500/50 backdrop-blur-sm">
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 text-blue-300 text-xs font-semibold">
-            Blue
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/80 dark:to-amber-950 rounded-2xl border-4 border-amber-600/50 shadow-2xl overflow-hidden">
+        
+        {/* Track Circle */}
+        <div className="absolute inset-[12%] rounded-full border-4 border-amber-600/30" />
+        <div className="absolute inset-[18%] rounded-full border-2 border-amber-600/20" />
+        
+        {/* Center Area */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20">
+          <div className="absolute inset-0 rotate-45 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg shadow-lg" />
+          <div className="absolute inset-2 rotate-45 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-lg" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-2xl">🏠</span>
           </div>
         </div>
 
-        {/* Red Home (top-right) */}
-        <div className="absolute top-4 right-4 w-24 h-24 bg-red-900/60 rounded-xl border-2 border-red-500/50 backdrop-blur-sm">
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 text-red-300 text-xs font-semibold">
-            Red
+        {/* Blue Home Base (Bottom Left) */}
+        <div className="absolute bottom-3 left-3 w-24 h-24 bg-gradient-to-br from-blue-500/80 to-blue-700/80 rounded-2xl border-3 border-blue-400/60 shadow-lg backdrop-blur-sm">
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-blue-600 rounded-full">
+            <span className="text-[10px] font-bold text-white">BLUE</span>
+          </div>
+          {/* Render 4 home tokens */}
+          {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player1Color, true))}
+          {/* Token count */}
+          <div className="absolute bottom-1 right-1 text-[10px] text-blue-200 font-medium">
+            {blueHomeCount}/4
           </div>
         </div>
 
-        {/* Track Highlight (simplified visual) */}
-        <div className="absolute top-1/2 left-0 right-0 h-8 -translate-y-1/2 bg-amber-200/10" />
-        <div className="absolute top-0 bottom-0 left-1/2 w-8 -translate-x-1/2 bg-amber-200/10" />
+        {/* Red Home Base (Top Right) */}
+        <div className="absolute top-3 right-3 w-24 h-24 bg-gradient-to-br from-red-500/80 to-red-700/80 rounded-2xl border-3 border-red-400/60 shadow-lg backdrop-blur-sm">
+          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-600 rounded-full">
+            <span className="text-[10px] font-bold text-white">RED</span>
+          </div>
+          {/* Render 4 home tokens */}
+          {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player2Color, false))}
+          {/* Token count */}
+          <div className="absolute bottom-1 right-1 text-[10px] text-red-200 font-medium">
+            {redHomeCount}/4
+          </div>
+        </div>
 
-        {/* Home Stretches */}
-        <div className="absolute top-1/2 left-4 right-1/2 h-6 -translate-y-1/2 bg-blue-500/20 rounded-l-full mr-8" />
-        <div className="absolute top-1/2 right-4 left-1/2 h-6 -translate-y-1/2 bg-red-500/20 rounded-r-full ml-8" />
+        {/* Home Stretch Indicators */}
+        <div className="absolute top-1/2 left-4 right-1/2 h-4 -translate-y-1/2 bg-gradient-to-r from-blue-500/40 to-transparent rounded-l-full mr-12" />
+        <div className="absolute top-1/2 right-4 left-1/2 h-4 -translate-y-1/2 bg-gradient-to-l from-red-500/40 to-transparent rounded-r-full ml-12" />
 
-        {/* Render tokens in home bases */}
-        {renderHomeBase(player1Tokens, player1Color, false)}
-        {renderHomeBase(player2Tokens, player2Color, true)}
+        {/* Start Position Markers */}
+        <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-blue-500/60 border-2 border-blue-400 flex items-center justify-center">
+          <span className="text-[8px] text-white font-bold">S</span>
+        </div>
+        <div className="absolute top-[12%] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-500/60 border-2 border-red-400 flex items-center justify-center">
+          <span className="text-[8px] text-white font-bold">S</span>
+        </div>
 
         {/* Render tokens on board */}
-        {player1Tokens.map((pos, idx) =>
-          renderToken(pos, player1Color, idx, true)
-        )}
-        {player2Tokens.map((pos, idx) =>
-          renderToken(pos, player2Color, idx, false)
-        )}
+        {[0, 1, 2, 3].map((idx) => renderBoardToken(idx, player1Color, true))}
+        {[0, 1, 2, 3].map((idx) => renderBoardToken(idx, player2Color, false))}
       </div>
     </div>
   );
