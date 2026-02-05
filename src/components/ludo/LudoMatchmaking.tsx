@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { Loader2, Sparkles, Trophy, Zap } from 'lucide-react';
+import { Loader2, Sparkles, Trophy, Zap, AlertCircle, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CrystalIcon } from '@/components/CrystalIcon';
+import { getRankFromWins } from '@/hooks/useLudoGame';
 
 interface LudoMatchmakingProps {
   crystals: number;
   isSearching: boolean;
   onFindGame: (entryFee: number) => void;
   onCancel: () => void;
+  matchmakingTimedOut?: boolean;
+  myWins?: number;
   player1Profile?: {
     username?: string | null;
     first_name?: string | null;
@@ -27,10 +30,14 @@ export const LudoMatchmaking = ({
   isSearching,
   onFindGame,
   onCancel,
+  matchmakingTimedOut,
+  myWins = 0,
   player1Profile,
   player2Profile,
 }: LudoMatchmakingProps) => {
   const [selectedFee, setSelectedFee] = useState(50);
+  
+  const myRank = getRankFromWins(myWins);
 
   // Get display name
   const getDisplayName = (profile?: { username?: string | null; first_name?: string | null } | null) => {
@@ -43,6 +50,37 @@ export const LudoMatchmaking = ({
     const name = getDisplayName(profile);
     return name.charAt(0).toUpperCase();
   };
+
+  // Timeout state
+  if (matchmakingTimedOut && isSearching) {
+    return (
+      <div className="flex flex-col items-center gap-6 p-6 animate-fade-in">
+        <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center">
+          <AlertCircle className="w-10 h-10 text-destructive" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold text-foreground">No Opponent Found</h2>
+          <p className="text-muted-foreground">
+            No players are available for {selectedFee} crystals entry.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="px-6 py-3 rounded-xl bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors"
+          >
+            Cancel & Refund
+          </button>
+          <button
+            onClick={() => onFindGame(selectedFee)}
+            className="px-6 py-3 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isSearching) {
     return (
@@ -74,9 +112,15 @@ export const LudoMatchmaking = ({
                   <span className="text-xs font-bold text-white">YOU</span>
                 </div>
               </div>
-              <span className="text-sm font-medium text-foreground">
-                {getDisplayName(player1Profile)}
-              </span>
+              <div className="text-center">
+                <span className="text-sm font-medium text-foreground block">
+                  {getDisplayName(player1Profile)}
+                </span>
+                <div className={cn("text-xs px-2 py-0.5 rounded-full bg-gradient-to-r text-white mt-1 inline-flex items-center gap-1", myRank.color)}>
+                  <span>{myRank.icon}</span>
+                  <span>{myRank.label}</span>
+                </div>
+              </div>
             </div>
 
             {/* VS Badge */}
@@ -138,6 +182,16 @@ export const LudoMatchmaking = ({
               </span>
             </div>
           </div>
+
+          {/* Searching indicator */}
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <div className="flex gap-1">
+              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span>Looking for players with same entry fee...</span>
+          </div>
         </div>
 
         {/* Cancel Button */}
@@ -165,10 +219,37 @@ export const LudoMatchmaking = ({
         </p>
       </div>
 
-      {/* Balance */}
-      <div className="flex items-center gap-2 px-5 py-2.5 bg-card/80 rounded-full border border-border/50 shadow-lg">
-        <CrystalIcon className="w-5 h-5" />
-        <span className="font-bold text-lg">{crystals.toLocaleString()}</span>
+      {/* Player Card with Rank */}
+      <div className="w-full p-4 bg-card/60 rounded-2xl border border-border/50">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg">
+            {player1Profile?.avatar_url ? (
+              <img 
+                src={player1Profile.avatar_url} 
+                alt="You" 
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              <span className="text-2xl font-bold text-white">
+                {getAvatarInitial(player1Profile)}
+              </span>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-foreground">{getDisplayName(player1Profile)}</p>
+            <div className={cn("text-xs px-2 py-0.5 rounded-full bg-gradient-to-r text-white mt-1 inline-flex items-center gap-1", myRank.color)}>
+              <span>{myRank.icon}</span>
+              <span>{myRank.label}</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-muted-foreground">Balance</p>
+            <div className="flex items-center gap-1">
+              <CrystalIcon className="w-5 h-5" />
+              <span className="font-bold text-lg">{crystals.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Entry Fee Selection - Premium Cards */}

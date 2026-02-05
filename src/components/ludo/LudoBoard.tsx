@@ -26,13 +26,63 @@ const TOKEN_COLORS: Record<string, { bg: string; border: string; glow: string }>
   },
 };
 
-// Home base positions for 4 tokens (2x2 grid within each base)
+// Home base positions for 4 tokens (2x2 grid)
 const HOME_TOKEN_POSITIONS = [
-  { row: 0, col: 0 },
-  { row: 0, col: 1 },
-  { row: 1, col: 0 },
-  { row: 1, col: 1 },
+  { row: 0, col: 0 }, // Token 1 - top left
+  { row: 0, col: 1 }, // Token 2 - top right
+  { row: 1, col: 0 }, // Token 3 - bottom left
+  { row: 1, col: 1 }, // Token 4 - bottom right
 ];
+
+// Classic Ludo board: 15x15 grid
+// The board path for each player
+const BOARD_PATH_BLUE = [
+  // Start at blue exit, go around clockwise
+  { r: 6, c: 1 }, { r: 6, c: 2 }, { r: 6, c: 3 }, { r: 6, c: 4 }, { r: 6, c: 5 },
+  { r: 5, c: 6 }, { r: 4, c: 6 }, { r: 3, c: 6 }, { r: 2, c: 6 }, { r: 1, c: 6 }, { r: 0, c: 6 },
+  { r: 0, c: 7 },
+  { r: 0, c: 8 }, { r: 1, c: 8 }, { r: 2, c: 8 }, { r: 3, c: 8 }, { r: 4, c: 8 }, { r: 5, c: 8 },
+  { r: 6, c: 9 }, { r: 6, c: 10 }, { r: 6, c: 11 }, { r: 6, c: 12 }, { r: 6, c: 13 }, { r: 6, c: 14 },
+  { r: 7, c: 14 },
+  { r: 8, c: 14 }, { r: 8, c: 13 }, { r: 8, c: 12 }, { r: 8, c: 11 }, { r: 8, c: 10 }, { r: 8, c: 9 },
+  { r: 9, c: 8 }, { r: 10, c: 8 }, { r: 11, c: 8 }, { r: 12, c: 8 }, { r: 13, c: 8 }, { r: 14, c: 8 },
+  { r: 14, c: 7 },
+  { r: 14, c: 6 }, { r: 13, c: 6 }, { r: 12, c: 6 }, { r: 11, c: 6 }, { r: 10, c: 6 }, { r: 9, c: 6 },
+  { r: 8, c: 5 }, { r: 8, c: 4 }, { r: 8, c: 3 }, { r: 8, c: 2 }, { r: 8, c: 1 }, { r: 8, c: 0 },
+  { r: 7, c: 0 },
+  // Home stretch for blue (entering from left)
+  { r: 7, c: 1 }, { r: 7, c: 2 }, { r: 7, c: 3 }, { r: 7, c: 4 }, { r: 7, c: 5 }, { r: 7, c: 6 },
+];
+
+// Red starts at position 26 in the shared path
+const BOARD_PATH_RED_START = 26;
+
+// Get position on board grid for a token
+const getTokenGridPosition = (position: number, color: string): { row: number; col: number } | null => {
+  // In home base
+  if (position === -1) return null;
+  
+  // Finished
+  if (position === 57) return { row: 7, col: 7 };
+  
+  // Home stretch (52-56)
+  if (position >= 52) {
+    const homeStep = position - 51;
+    if (color === 'blue') {
+      return { row: 7, col: homeStep };
+    } else {
+      return { row: 7, col: 14 - homeStep };
+    }
+  }
+  
+  // Main track
+  const pathIndex = position % 52;
+  if (pathIndex < BOARD_PATH_BLUE.length) {
+    return { row: BOARD_PATH_BLUE[pathIndex].r, col: BOARD_PATH_BLUE[pathIndex].c };
+  }
+  
+  return null;
+};
 
 export const LudoBoard = ({
   player1Tokens,
@@ -68,7 +118,7 @@ export const LudoBoard = ({
         onClick={() => isSelectable && onTokenClick(tokenIndex)}
         disabled={!isSelectable}
         className={cn(
-          "absolute w-8 h-8 rounded-full transition-all duration-300",
+          "absolute w-7 h-7 rounded-full transition-all duration-300",
           "bg-gradient-to-br shadow-lg border-2",
           colors.bg,
           colors.border,
@@ -77,12 +127,12 @@ export const LudoBoard = ({
           !isSelectable && "opacity-80 cursor-default"
         )}
         style={{
-          top: `${20 + tokenPos.row * 40}%`,
-          left: `${20 + tokenPos.col * 40}%`,
+          top: `${15 + tokenPos.row * 35}%`,
+          left: `${15 + tokenPos.col * 35}%`,
         }}
       >
         <div className="absolute inset-1 rounded-full bg-white/30" />
-        <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-bold drop-shadow-md">
+        <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow-md">
           {tokenIndex + 1}
         </span>
       </button>
@@ -104,38 +154,13 @@ export const LudoBoard = ({
     const isSelected = selectedToken === tokenIndex && myColor === color;
     const colors = TOKEN_COLORS[color];
 
-    // Calculate visual position on the simplified board
-    // This is a simplified representation
-    const getTokenPosition = (pos: number, playerColor: string) => {
-      // Finished tokens
-      if (pos === 57) {
-        return { top: 50, left: 50 }; // Center
-      }
-      
-      // Home stretch (52-56)
-      if (pos >= 52) {
-        const homeStep = pos - 51;
-        if (playerColor === 'blue') {
-          return { top: 50, left: 10 + homeStep * 7 };
-        } else {
-          return { top: 50, left: 90 - homeStep * 7 };
-        }
-      }
-      
-      // Main track - simplified circular representation
-      const angle = (pos / 52) * 360;
-      const radius = 38;
-      const centerX = 50;
-      const centerY = 50;
-      
-      const radians = (angle - 90) * (Math.PI / 180);
-      const x = centerX + radius * Math.cos(radians);
-      const y = centerY + radius * Math.sin(radians);
-      
-      return { top: y, left: x };
-    };
-
-    const posCoords = getTokenPosition(position, color);
+    const gridPos = getTokenGridPosition(position, color);
+    if (!gridPos) return null;
+    
+    // Convert grid position to percentage
+    const cellSize = 100 / 15;
+    const top = gridPos.row * cellSize + cellSize / 2;
+    const left = gridPos.col * cellSize + cellSize / 2;
 
     return (
       <button
@@ -143,7 +168,7 @@ export const LudoBoard = ({
         onClick={() => isSelectable && onTokenClick(tokenIndex)}
         disabled={!isSelectable}
         className={cn(
-          "absolute w-7 h-7 rounded-full transition-all duration-300 -translate-x-1/2 -translate-y-1/2",
+          "absolute w-5 h-5 rounded-full transition-all duration-300 -translate-x-1/2 -translate-y-1/2",
           "bg-gradient-to-br shadow-lg border-2 z-10",
           colors.bg,
           colors.border,
@@ -152,12 +177,12 @@ export const LudoBoard = ({
           !isSelectable && "opacity-90 cursor-default"
         )}
         style={{
-          top: `${posCoords.top}%`,
-          left: `${posCoords.left}%`,
+          top: `${top}%`,
+          left: `${left}%`,
         }}
       >
-        <div className="absolute inset-1 rounded-full bg-white/30" />
-        <span className="absolute inset-0 flex items-center justify-center text-white text-xs font-bold drop-shadow-md">
+        <div className="absolute inset-0.5 rounded-full bg-white/30" />
+        <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-bold drop-shadow-md">
           {tokenIndex + 1}
         </span>
       </button>
@@ -167,61 +192,132 @@ export const LudoBoard = ({
   // Count tokens in each base
   const blueHomeCount = player1Tokens.filter(p => p === -1).length;
   const redHomeCount = player2Tokens.filter(p => p === -1).length;
+  
+  const cellSize = 100 / 15;
 
   return (
-    <div className="relative w-full aspect-square max-w-[380px] mx-auto">
-      {/* Board Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/80 dark:to-amber-950 rounded-2xl border-4 border-amber-600/50 shadow-2xl overflow-hidden">
+    <div className="relative w-full aspect-square max-w-[360px] mx-auto">
+      {/* Classic Ludo Board */}
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-stone-900 rounded-xl border-4 border-amber-700/60 shadow-2xl overflow-hidden">
         
-        {/* Track Circle */}
-        <div className="absolute inset-[12%] rounded-full border-4 border-amber-600/30" />
-        <div className="absolute inset-[18%] rounded-full border-2 border-amber-600/20" />
+        {/* Grid lines for visual reference */}
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 15 15" preserveAspectRatio="none">
+          {/* Blue home base (top-left 6x6) */}
+          <rect x="0" y="0" width="6" height="6" fill="#3b82f6" fillOpacity="0.3" stroke="#3b82f6" strokeWidth="0.1" />
+          
+          {/* Red home base (bottom-right 6x6) */}
+          <rect x="9" y="9" width="6" height="6" fill="#ef4444" fillOpacity="0.3" stroke="#ef4444" strokeWidth="0.1" />
+          
+          {/* Green home base (top-right 6x6) - unused but for classic look */}
+          <rect x="9" y="0" width="6" height="6" fill="#22c55e" fillOpacity="0.15" stroke="#22c55e" strokeWidth="0.1" />
+          
+          {/* Yellow home base (bottom-left 6x6) - unused but for classic look */}
+          <rect x="0" y="9" width="6" height="6" fill="#eab308" fillOpacity="0.15" stroke="#eab308" strokeWidth="0.1" />
+          
+          {/* Center triangles forming winning area */}
+          <polygon points="6,6 7.5,7.5 6,9" fill="#3b82f6" fillOpacity="0.5" />
+          <polygon points="9,6 7.5,7.5 9,9" fill="#ef4444" fillOpacity="0.5" />
+          <polygon points="6,6 7.5,7.5 9,6" fill="#22c55e" fillOpacity="0.3" />
+          <polygon points="6,9 7.5,7.5 9,9" fill="#eab308" fillOpacity="0.3" />
+          
+          {/* Track paths */}
+          {/* Vertical blue home stretch */}
+          <rect x="6" y="1" width="1" height="5" fill="#3b82f6" fillOpacity="0.4" />
+          
+          {/* Vertical red home stretch */}
+          <rect x="8" y="9" width="1" height="5" fill="#ef4444" fillOpacity="0.4" />
+          
+          {/* Horizontal paths */}
+          <rect x="1" y="6" width="5" height="1" fill="#ffffff" fillOpacity="0.3" />
+          <rect x="1" y="7" width="5" height="1" fill="#3b82f6" fillOpacity="0.4" />
+          <rect x="1" y="8" width="5" height="1" fill="#ffffff" fillOpacity="0.3" />
+          
+          <rect x="9" y="6" width="5" height="1" fill="#ffffff" fillOpacity="0.3" />
+          <rect x="9" y="7" width="5" height="1" fill="#ef4444" fillOpacity="0.4" />
+          <rect x="9" y="8" width="5" height="1" fill="#ffffff" fillOpacity="0.3" />
+          
+          {/* Vertical paths */}
+          <rect x="6" y="1" width="1" height="5" fill="#ffffff" fillOpacity="0.3" />
+          <rect x="8" y="1" width="1" height="5" fill="#ffffff" fillOpacity="0.3" />
+          <rect x="6" y="9" width="1" height="5" fill="#ffffff" fillOpacity="0.3" />
+          <rect x="8" y="9" width="1" height="5" fill="#ffffff" fillOpacity="0.3" />
+          
+          {/* Top/bottom middle cells */}
+          <rect x="7" y="0" width="1" height="1" fill="#22c55e" fillOpacity="0.4" />
+          <rect x="7" y="14" width="1" height="1" fill="#eab308" fillOpacity="0.4" />
+          
+          {/* Start positions (safe spots) */}
+          <rect x="1" y="6" width="1" height="1" fill="#3b82f6" fillOpacity="0.6" stroke="#3b82f6" strokeWidth="0.05" />
+          <rect x="8" y="13" width="1" height="1" fill="#ef4444" fillOpacity="0.6" stroke="#ef4444" strokeWidth="0.05" />
+          
+          {/* Safe spots */}
+          <circle cx="2.5" cy="6.5" r="0.25" fill="#fbbf24" />
+          <circle cx="6.5" cy="2.5" r="0.25" fill="#fbbf24" />
+          <circle cx="8.5" cy="2.5" r="0.25" fill="#fbbf24" />
+          <circle cx="12.5" cy="6.5" r="0.25" fill="#fbbf24" />
+          <circle cx="12.5" cy="8.5" r="0.25" fill="#fbbf24" />
+          <circle cx="8.5" cy="12.5" r="0.25" fill="#fbbf24" />
+          <circle cx="6.5" cy="12.5" r="0.25" fill="#fbbf24" />
+          <circle cx="2.5" cy="8.5" r="0.25" fill="#fbbf24" />
+        </svg>
         
         {/* Center Area */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20">
-          <div className="absolute inset-0 rotate-45 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg shadow-lg" />
-          <div className="absolute inset-2 rotate-45 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-lg" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl">🏠</span>
-          </div>
+        <div 
+          className="absolute flex items-center justify-center"
+          style={{
+            top: `${6 * cellSize}%`,
+            left: `${6 * cellSize}%`,
+            width: `${3 * cellSize}%`,
+            height: `${3 * cellSize}%`,
+          }}
+        >
+          <span className="text-xl">🏠</span>
         </div>
 
-        {/* Blue Home Base (Bottom Left) */}
-        <div className="absolute bottom-3 left-3 w-24 h-24 bg-gradient-to-br from-blue-500/80 to-blue-700/80 rounded-2xl border-3 border-blue-400/60 shadow-lg backdrop-blur-sm">
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-blue-600 rounded-full">
-            <span className="text-[10px] font-bold text-white">BLUE</span>
+        {/* Blue Home Base with 4 tokens */}
+        <div 
+          className="absolute bg-gradient-to-br from-blue-500/90 to-blue-700/90 rounded-lg border-2 border-blue-400/60 shadow-lg"
+          style={{
+            top: `${0.5 * cellSize}%`,
+            left: `${0.5 * cellSize}%`,
+            width: `${5 * cellSize}%`,
+            height: `${5 * cellSize}%`,
+          }}
+        >
+          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-blue-600 rounded-full">
+            <span className="text-[8px] font-bold text-white">BLUE</span>
           </div>
-          {/* Render 4 home tokens */}
-          {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player1Color, true))}
-          {/* Token count */}
-          <div className="absolute bottom-1 right-1 text-[10px] text-blue-200 font-medium">
+          <div className="absolute inset-2 bg-blue-900/40 rounded-md flex items-center justify-center">
+            <div className="relative w-full h-full">
+              {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player1Color, true))}
+            </div>
+          </div>
+          <div className="absolute bottom-0.5 right-1 text-[8px] text-blue-200 font-medium">
             {blueHomeCount}/4
           </div>
         </div>
 
-        {/* Red Home Base (Top Right) */}
-        <div className="absolute top-3 right-3 w-24 h-24 bg-gradient-to-br from-red-500/80 to-red-700/80 rounded-2xl border-3 border-red-400/60 shadow-lg backdrop-blur-sm">
-          <div className="absolute top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-red-600 rounded-full">
-            <span className="text-[10px] font-bold text-white">RED</span>
+        {/* Red Home Base with 4 tokens */}
+        <div 
+          className="absolute bg-gradient-to-br from-red-500/90 to-red-700/90 rounded-lg border-2 border-red-400/60 shadow-lg"
+          style={{
+            top: `${9.5 * cellSize}%`,
+            left: `${9.5 * cellSize}%`,
+            width: `${5 * cellSize}%`,
+            height: `${5 * cellSize}%`,
+          }}
+        >
+          <div className="absolute top-0.5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-red-600 rounded-full">
+            <span className="text-[8px] font-bold text-white">RED</span>
           </div>
-          {/* Render 4 home tokens */}
-          {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player2Color, false))}
-          {/* Token count */}
-          <div className="absolute bottom-1 right-1 text-[10px] text-red-200 font-medium">
+          <div className="absolute inset-2 bg-red-900/40 rounded-md flex items-center justify-center">
+            <div className="relative w-full h-full">
+              {[0, 1, 2, 3].map((idx) => renderHomeToken(idx, player2Color, false))}
+            </div>
+          </div>
+          <div className="absolute bottom-0.5 right-1 text-[8px] text-red-200 font-medium">
             {redHomeCount}/4
           </div>
-        </div>
-
-        {/* Home Stretch Indicators */}
-        <div className="absolute top-1/2 left-4 right-1/2 h-4 -translate-y-1/2 bg-gradient-to-r from-blue-500/40 to-transparent rounded-l-full mr-12" />
-        <div className="absolute top-1/2 right-4 left-1/2 h-4 -translate-y-1/2 bg-gradient-to-l from-red-500/40 to-transparent rounded-r-full ml-12" />
-
-        {/* Start Position Markers */}
-        <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-blue-500/60 border-2 border-blue-400 flex items-center justify-center">
-          <span className="text-[8px] text-white font-bold">S</span>
-        </div>
-        <div className="absolute top-[12%] left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-500/60 border-2 border-red-400 flex items-center justify-center">
-          <span className="text-[8px] text-white font-bold">S</span>
         </div>
 
         {/* Render tokens on board */}
