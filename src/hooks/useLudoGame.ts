@@ -45,6 +45,16 @@ export interface ChatMessage {
   created_at: string;
 }
 
+// Rank system based on wins
+export const getRankFromWins = (wins: number = 0) => {
+  if (wins >= 100) return { label: 'Legend', color: 'from-purple-500 to-pink-500', icon: '👑', tier: 6 };
+  if (wins >= 50) return { label: 'Master', color: 'from-yellow-400 to-orange-500', icon: '⭐', tier: 5 };
+  if (wins >= 20) return { label: 'Gold', color: 'from-yellow-300 to-yellow-500', icon: '🥇', tier: 4 };
+  if (wins >= 10) return { label: 'Silver', color: 'from-gray-300 to-gray-400', icon: '🥈', tier: 3 };
+  if (wins >= 5) return { label: 'Bronze', color: 'from-orange-300 to-orange-500', icon: '🥉', tier: 2 };
+  return { label: 'Rookie', color: 'from-green-400 to-green-600', icon: '🌟', tier: 1 };
+};
+
 // Ludo board positions
 // -1 = in home base, 0-51 = on board, 52-56 = in final stretch, 57 = finished
 export const BOARD_SIZE = 52;
@@ -63,6 +73,8 @@ export const HOME_ENTRY: Record<string, number> = {
   red: 24,
 };
 
+const MATCHMAKING_TIMEOUT = 60000; // 60 seconds timeout
+
 export const useLudoGame = (gameId?: string) => {
   const queryClient = useQueryClient();
   const { profile, refetch: refetchProfile } = useProfile();
@@ -73,7 +85,10 @@ export const useLudoGame = (gameId?: string) => {
   const [validMoves, setValidMoves] = useState<number[]>([]);
   const [hasMoved, setHasMoved] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const waitingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const deductionRef = useRef<string | null>(null); // Track which game we've deducted for
+  const matchmakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [matchmakingTimedOut, setMatchmakingTimedOut] = useState(false);
 
   // Fetch current game
   const { data: game, isLoading, refetch } = useQuery({
@@ -132,13 +147,20 @@ export const useLudoGame = (gameId?: string) => {
           queryClient.invalidateQueries({ queryKey: ['ludo-game', gameId] });
           // Reset dice state when turn changes
           if (payload.new && payload.old) {
-            const newGame = payload.new as LudoGame;
-            const oldGame = payload.old as LudoGame;
+            const newGame = payload.new as unknown as LudoGame;
+            const oldGame = payload.old as unknown as LudoGame;
             if (newGame.current_turn !== oldGame.current_turn) {
               setDiceValue(null);
               setValidMoves([]);
               setSelectedToken(null);
               setHasMoved(false);
+            }
+            // Clear timeout when game starts
+            if (oldGame.status === 'waiting' && newGame.status === 'playing') {
+              if (matchmakingTimeoutRef.current) {
+                clearTimeout(matchmakingTimeoutRef.current);
+                matchmakingTimeoutRef.current = null;
+              }
             }
           }
         }
@@ -164,6 +186,63 @@ export const useLudoGame = (gameId?: string) => {
     };
   }, [gameId, queryClient]);
 
+  // Subscribe to waiting games to detect when someone joins
+  useEffect(() => {
+    if (!game || game.status !== 'waiting' || !profile) return;
+
+    // Set timeout for matchmaking
+    matchmakingTimeoutRef.current = setTimeout(() => {
+      setMatchmakingTimedOut(true);
+      toast.error('No opponent found. Try again later.');
+    }, MATCHMAKING_TIMEOUT);
+
+    // Subscribe to changes on THIS specific waiting game
+    waitingChannelRef.current = supabase
+      .channel(`waiting-game-${game.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'ludo_games',
+          filter: `id=eq.${game.id}`,
+        },
+        (payload) => {
+          console.log('Waiting game update:', payload);
+          const updated = payload.new as unknown as LudoGame;
+          if (updated.status === 'playing' && updated.player2_id) {
+            // Opponent found!
+            if (matchmakingTimeoutRef.current) {
+              clearTimeout(matchmakingTimeoutRef.current);
+              matchmakingTimeoutRef.current = null;
+            }
+            toast.success('Opponent found! Game starting...');
+            queryClient.invalidateQueries({ queryKey: ['ludo-game', game.id] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (matchmakingTimeoutRef.current) {
+        clearTimeout(matchmakingTimeoutRef.current);
+        matchmakingTimeoutRef.current = null;
+      }
+      if (waitingChannelRef.current) {
+        supabase.removeChannel(waitingChannelRef.current);
+      }
+    };
+  }, [game?.id, game?.status, profile, queryClient]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (matchmakingTimeoutRef.current) {
+        clearTimeout(matchmakingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Get player info
   const isPlayer1 = game?.player1_id === profile?.id;
   const isPlayer2 = game?.player2_id === profile?.id;
@@ -179,6 +258,8 @@ export const useLudoGame = (gameId?: string) => {
   const findWaitingGame = useMutation({
     mutationFn: async (entryFee: number) => {
       if (!profile) throw new Error('Not logged in');
+      
+      setMatchmakingTimedOut(false);
       
       // Check if user has enough crystals
       if (profile.crystals < entryFee) {
@@ -205,13 +286,15 @@ export const useLudoGame = (gameId?: string) => {
         } as LudoGame;
       }
 
-      // Look for existing waiting game with same entry fee (not created by this user)
+      // Look for existing waiting game with same entry fee (not created by this user and not stale)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       const { data: existingGames, error: searchError } = await supabase
         .from('ludo_games')
         .select('*')
         .eq('status', 'waiting')
         .eq('entry_fee', entryFee)
         .neq('player1_id', profile.id)
+        .gte('created_at', fiveMinutesAgo)
         .order('created_at', { ascending: true })
         .limit(1);
 
@@ -755,6 +838,7 @@ export const useLudoGame = (gameId?: string) => {
     selectedToken,
     validMoves,
     canRollDice,
+    matchmakingTimedOut,
     setSelectedToken,
     rollDice,
     moveToken: moveToken.mutate,

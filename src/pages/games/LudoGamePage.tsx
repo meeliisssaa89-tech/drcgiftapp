@@ -25,6 +25,7 @@ export const LudoGamePage = () => {
     selectedToken,
     validMoves,
     canRollDice,
+    matchmakingTimedOut,
     setSelectedToken,
     rollDice,
     moveToken,
@@ -37,6 +38,7 @@ export const LudoGamePage = () => {
 
   const [isSearching, setIsSearching] = useState(false);
   const [selectedEntryFee, setSelectedEntryFee] = useState(50);
+  const [showResultScreen, setShowResultScreen] = useState(false);
 
   // Fetch player profiles for display
   const { data: player1Profile } = useQuery({
@@ -96,6 +98,21 @@ export const LudoGamePage = () => {
     enabled: !!game?.player2_id,
   });
 
+  // Get my wins for lobby display
+  const { data: myWins } = useQuery({
+    queryKey: ['my-wins', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return 0;
+      const { count } = await supabase
+        .from('ludo_games')
+        .select('*', { count: 'exact', head: true })
+        .eq('winner_id', profile.id)
+        .eq('status', 'finished');
+      return count || 0;
+    },
+    enabled: !!profile?.id,
+  });
+
   // Handle game found
   useEffect(() => {
     if (game && !gameId) {
@@ -110,6 +127,13 @@ export const LudoGamePage = () => {
       setIsSearching(false);
     }
   }, [game?.status, isSearching]);
+
+  // Handle game finished - show result screen instead of 404
+  useEffect(() => {
+    if (game?.status === 'finished') {
+      setShowResultScreen(true);
+    }
+  }, [game?.status]);
 
   const handleFindGame = async (entryFee: number) => {
     setSelectedEntryFee(entryFee);
@@ -141,7 +165,16 @@ export const LudoGamePage = () => {
     if (game?.status === 'waiting') {
       cancelGame();
     }
+    // Clear game params and go back to lobby
+    setSearchParams({});
+    setShowResultScreen(false);
     navigate('/pvp-games');
+  };
+
+  const handleBackToLobby = () => {
+    // Clear game state and return to matchmaking
+    setSearchParams({});
+    setShowResultScreen(false);
   };
 
   const handleTokenClick = (tokenIndex: number) => {
@@ -183,6 +216,8 @@ export const LudoGamePage = () => {
             isSearching={true}
             onFindGame={handleFindGame}
             onCancel={handleCancel}
+            matchmakingTimedOut={matchmakingTimedOut}
+            myWins={myWins || 0}
             player1Profile={player1Profile}
             player2Profile={player2Profile}
           />
@@ -190,7 +225,7 @@ export const LudoGamePage = () => {
       );
     }
 
-    // Active game
+    // Active game or finished game (with result screen)
     return (
       <div className="px-4 pt-4">
         <LudoGameView
@@ -206,7 +241,7 @@ export const LudoGamePage = () => {
           canRollDice={canRollDice}
           player1Info={player1Profile ? { ...player1Profile, wins: player1Wins || 0 } : null}
           player2Info={player2Profile ? { ...player2Profile, wins: player2Wins || 0 } : null}
-          onBack={handleBack}
+          onBack={game.status === 'finished' ? handleBackToLobby : handleBack}
           onRollDice={rollDice}
           onTokenClick={handleTokenClick}
           onSendMessage={sendMessage}
@@ -232,6 +267,8 @@ export const LudoGamePage = () => {
         isSearching={isSearching || isFindingGame}
         onFindGame={handleFindGame}
         onCancel={handleCancel}
+        matchmakingTimedOut={matchmakingTimedOut}
+        myWins={myWins || 0}
         player1Profile={profile ? { 
           username: profile.username, 
           first_name: profile.first_name, 
