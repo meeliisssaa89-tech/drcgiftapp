@@ -7,10 +7,11 @@ import {
   Trophy,
   History,
   BarChart3,
-  Gamepad2
+  Gamepad2,
+  FileText
 } from 'lucide-react';
 
-export type AdminTab = 'overview' | 'users' | 'tasks' | 'prizes' | 'giveaways' | 'pvp-games' | 'settings' | 'history';
+export type AdminTab = 'overview' | 'users' | 'tasks' | 'prizes' | 'giveaways' | 'pvp-games' | 'pages' | 'settings' | 'history';
 
 interface AdminTabsProps {
   activeTab: AdminTab;
@@ -24,6 +25,7 @@ const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
   { id: 'prizes', label: 'Prizes', icon: <Trophy className="w-4 h-4" /> },
   { id: 'giveaways', label: 'Giveaways', icon: <Gift className="w-4 h-4" /> },
   { id: 'pvp-games', label: 'PvP Games', icon: <Gamepad2 className="w-4 h-4" /> },
+  { id: 'pages', label: 'Pages', icon: <FileText className="w-4 h-4" /> },
   { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
 ];

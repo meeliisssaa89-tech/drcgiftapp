@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      cms_pages: {
+        Row: {
+          blocks: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_published: boolean
+          meta_description: string | null
+          meta_title: string | null
+          page_type: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          blocks?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          page_type?: string
+          slug: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          blocks?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_published?: boolean
+          meta_description?: string | null
+          meta_title?: string | null
+          page_type?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_history: {
         Row: {
           bet_amount: number
