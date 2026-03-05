@@ -439,6 +439,8 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          game_files_path: string | null
+          game_type: string
           game_url: string | null
           icon_emoji: string
           id: string
@@ -452,6 +454,8 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          game_files_path?: string | null
+          game_type?: string
           game_url?: string | null
           icon_emoji?: string
           id?: string
@@ -465,6 +469,8 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          game_files_path?: string | null
+          game_type?: string
           game_url?: string | null
           icon_emoji?: string
           id?: string

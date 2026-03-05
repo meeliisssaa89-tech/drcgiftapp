@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { LudoGamePage } from "./pages/games/LudoGamePage";
+import { HostedGamePage } from "./pages/games/HostedGamePage";
 import { lazy, Suspense } from "react";
 
 const CmsPage = lazy(() => import("./pages/CmsPage"));
@@ -23,6 +24,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/games/ludo" element={<LudoGamePage />} />
+          <Route path="/games/hosted/:id" element={<HostedGamePage />} />
           <Route path="/p/:slug" element={<Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>}><CmsPage /></Suspense>} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminDashboard />} />
