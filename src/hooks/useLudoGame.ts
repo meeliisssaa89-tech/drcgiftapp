@@ -87,7 +87,7 @@ export const useLudoGame = (gameId?: string) => {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const waitingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const deductionRef = useRef<string | null>(null); // Track which game we've deducted for
-  const matchmakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const matchmakingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [matchmakingTimedOut, setMatchmakingTimedOut] = useState(false);
 
   // Fetch current game
