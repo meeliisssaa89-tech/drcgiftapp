@@ -8,10 +8,11 @@ import {
   History,
   BarChart3,
   Gamepad2,
-  FileText
+  FileText,
+  Palette
 } from 'lucide-react';
 
-export type AdminTab = 'overview' | 'users' | 'tasks' | 'prizes' | 'giveaways' | 'pvp-games' | 'pages' | 'settings' | 'history';
+export type AdminTab = 'overview' | 'users' | 'tasks' | 'prizes' | 'giveaways' | 'pvp-games' | 'pages' | 'icons' | 'settings' | 'history';
 
 interface AdminTabsProps {
   activeTab: AdminTab;
