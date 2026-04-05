@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_icons: {
+        Row: {
+          created_at: string
+          emoji_value: string | null
+          gif_url: string | null
+          icon_key: string
+          icon_type: string
+          id: string
+          label: string
+          sticker_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          emoji_value?: string | null
+          gif_url?: string | null
+          icon_key: string
+          icon_type?: string
+          id?: string
+          label?: string
+          sticker_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          emoji_value?: string | null
+          gif_url?: string | null
+          icon_key?: string
+          icon_type?: string
+          id?: string
+          label?: string
+          sticker_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cms_pages: {
         Row: {
           blocks: Json
