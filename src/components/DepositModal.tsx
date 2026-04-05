@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { X, Wallet, Loader2, ExternalLink, Star, Gift, ChevronRight } from 'lucide-react';
+import { X, Wallet, Loader2, Star } from 'lucide-react';
 import { useTonDeposit } from '@/hooks/useTonDeposit';
 import { useTelegramStars } from '@/hooks/useTelegramStars';
 import { CrystalIcon } from './CrystalIcon';
 import { cn } from '@/lib/utils';
 
-type DepositMethod = 'stars' | 'ton' | 'gift';
+type DepositMethod = 'stars' | 'ton';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -16,9 +16,6 @@ export const DepositModal = ({ isOpen, onClose }: DepositModalProps) => {
   const [activeMethod, setActiveMethod] = useState<DepositMethod>('stars');
   const [starsAmount, setStarsAmount] = useState('');
   const [tonAmount, setTonAmount] = useState('');
-  const [selectedGift, setSelectedGift] = useState<string | null>(null);
-  const [recipientId, setRecipientId] = useState('');
-  const [giftMessage, setGiftMessage] = useState('');
 
   const {
     isConnected: tonConnected,
@@ -33,9 +30,7 @@ export const DepositModal = ({ isOpen, onClose }: DepositModalProps) => {
   const {
     settings: starsSettings,
     isProcessing: isStarsProcessing,
-    availableGifts,
     purchaseStars,
-    sendGift,
     isTelegram,
   } = useTelegramStars();
 
@@ -58,16 +53,6 @@ export const DepositModal = ({ isOpen, onClose }: DepositModalProps) => {
     if (!tonAmount) return;
     await depositTon(tonAmount);
     setTonAmount('');
-  };
-
-  const handleSendGift = async () => {
-    if (!selectedGift || !recipientId) return;
-    const success = await sendGift(parseInt(recipientId), selectedGift, giftMessage);
-    if (success) {
-      setSelectedGift(null);
-      setRecipientId('');
-      setGiftMessage('');
-    }
   };
 
   const formatAddress = (addr: string) => {
@@ -116,18 +101,6 @@ export const DepositModal = ({ isOpen, onClose }: DepositModalProps) => {
           >
             <Wallet className="w-4 h-4" />
             TON
-          </button>
-          <button
-            onClick={() => setActiveMethod('gift')}
-            className={cn(
-              "flex-1 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2",
-              activeMethod === 'gift'
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary hover:bg-secondary/80"
-            )}
-          >
-            <Gift className="w-4 h-4" />
-            Gifts
           </button>
         </div>
 
@@ -332,89 +305,6 @@ export const DepositModal = ({ isOpen, onClose }: DepositModalProps) => {
                     <>
                       <CrystalIcon size={20} />
                       Deposit Now
-                    </>
-                  )}
-                </button>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Send Gifts */}
-        {activeMethod === 'gift' && (
-          <div className="space-y-5">
-            <div className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-2xl p-4 text-center">
-              <Gift className="w-12 h-12 mx-auto mb-2 text-pink-400" />
-              <h3 className="font-semibold">Send a Gift</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Send Telegram gifts to your friends
-              </p>
-            </div>
-
-            {/* Gift Selection */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium">Select Gift</label>
-              <div className="grid grid-cols-3 gap-2">
-                {availableGifts.map((gift) => (
-                  <button
-                    key={gift.id}
-                    onClick={() => setSelectedGift(gift.id)}
-                    className={cn(
-                      "p-3 rounded-xl text-center transition-all border-2",
-                      selectedGift === gift.id
-                        ? "border-primary bg-primary/10"
-                        : "border-transparent bg-secondary hover:bg-secondary/80"
-                    )}
-                  >
-                    <span className="text-2xl block mb-1">{gift.emoji}</span>
-                    <span className="text-xs block text-muted-foreground">{gift.stars_cost} ⭐</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {selectedGift && (
-              <>
-                {/* Recipient */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Recipient Telegram ID</label>
-                  <input
-                    type="number"
-                    value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                    placeholder="Enter Telegram ID"
-                    className="w-full bg-secondary rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                {/* Message */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Message (optional)</label>
-                  <input
-                    type="text"
-                    value={giftMessage}
-                    onChange={(e) => setGiftMessage(e.target.value)}
-                    placeholder="Add a message..."
-                    maxLength={100}
-                    className="w-full bg-secondary rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-
-                {/* Send Button */}
-                <button
-                  onClick={handleSendGift}
-                  disabled={!recipientId || isStarsProcessing}
-                  className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isStarsProcessing ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Gift className="w-5 h-5" />
-                      Send Gift ({availableGifts.find(g => g.id === selectedGift)?.stars_cost} ⭐)
                     </>
                   )}
                 </button>
