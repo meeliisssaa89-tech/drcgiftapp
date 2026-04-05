@@ -15,6 +15,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { HistoryTab } from './components/HistoryTab';
 import { PvPGamesTab } from './components/PvPGamesTab';
 import { PagesTab } from './components/PagesTab';
+import { IconsTab } from './components/IconsTab';
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -183,6 +184,10 @@ export const AdminDashboard = () => {
 
         {activeTab === 'pages' && (
           <PagesTab />
+        )}
+
+        {activeTab === 'icons' && (
+          <IconsTab />
         )}
 
         {activeTab === 'settings' && (

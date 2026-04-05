@@ -9,25 +9,7 @@ interface TelegramStarsSettings {
   exchange_rate: number;
   min_deposit: number;
   max_deposit: number;
-  gift_enabled: boolean;
 }
-
-interface TelegramGift {
-  id: string;
-  name: string;
-  stars_cost: number;
-  emoji: string;
-}
-
-// Predefined Telegram gifts
-const TELEGRAM_GIFTS: TelegramGift[] = [
-  { id: 'star', name: 'Star', stars_cost: 10, emoji: '⭐' },
-  { id: 'gift', name: 'Gift Box', stars_cost: 25, emoji: '🎁' },
-  { id: 'heart', name: 'Heart', stars_cost: 50, emoji: '❤️' },
-  { id: 'diamond', name: 'Diamond', stars_cost: 100, emoji: '💎' },
-  { id: 'rocket', name: 'Rocket', stars_cost: 250, emoji: '🚀' },
-  { id: 'trophy', name: 'Trophy', stars_cost: 500, emoji: '🏆' },
-];
 
 export const useTelegramStars = () => {
   const { profile, refetch: refetchProfile } = useProfile();
@@ -36,7 +18,6 @@ export const useTelegramStars = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch Telegram Stars settings
   const fetchSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -45,20 +26,16 @@ export const useTelegramStars = () => {
         .eq('key', 'telegram_stars')
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+      if (error && error.code !== 'PGRST116') throw error;
 
       if (data?.value) {
         setSettings(data.value as unknown as TelegramStarsSettings);
       } else {
-        // Default settings
         setSettings({
           enabled: true,
           exchange_rate: 10,
           min_deposit: 10,
           max_deposit: 10000,
-          gift_enabled: true,
         });
       }
     } catch (error) {
@@ -72,14 +49,11 @@ export const useTelegramStars = () => {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Check if Telegram WebApp supports payments
   const supportsPayments = useCallback(() => {
     if (!isTelegram || !window.Telegram?.WebApp) return false;
-    // Check if openInvoice method exists
     return typeof window.Telegram.WebApp.openInvoice === 'function';
   }, [isTelegram]);
 
-  // Purchase stars (deposit)
   const purchaseStars = useCallback(async (starsAmount: number): Promise<boolean> => {
     if (!profile?.id) {
       toast.error('Please log in first');
@@ -104,20 +78,51 @@ export const useTelegramStars = () => {
     setIsProcessing(true);
 
     try {
-      // In Telegram WebApp, we would use openInvoice for real payments
-      // For now, we'll simulate the process
+      // Create invoice via edge function
+      const { data: invoiceData, error: invoiceError } = await supabase.functions.invoke(
+        'create-stars-invoice',
+        {
+          body: {
+            stars_amount: starsAmount,
+            profile_id: profile.id,
+          },
+        }
+      );
+
+      if (invoiceError || !invoiceData?.invoice_url) {
+        console.error('Invoice error:', invoiceError || invoiceData);
+        toast.error('Failed to create payment invoice');
+        setIsProcessing(false);
+        return false;
+      }
+
+      // Open invoice in Telegram WebApp
       if (isTelegram && window.Telegram?.WebApp?.openInvoice) {
-        // Create a payment invoice URL (this would normally come from your bot backend)
-        // The bot would create an invoice using Bot API createInvoiceLink
-        const invoiceUrl = `https://t.me/$stars_deposit?amount=${starsAmount}`;
-        
         return new Promise((resolve) => {
-          window.Telegram!.WebApp.openInvoice(invoiceUrl, async (status) => {
+          window.Telegram!.WebApp.openInvoice(invoiceData.invoice_url, async (status) => {
             if (status === 'paid') {
-              await recordStarDeposit(starsAmount, 'telegram_' + Date.now());
-              hapticFeedback('success');
-              toast.success('Payment successful!');
-              resolve(true);
+              // Confirm payment on backend
+              const paymentId = `tg_${Date.now()}_${starsAmount}`;
+              const { data: confirmData, error: confirmError } = await supabase.functions.invoke(
+                'confirm-stars-payment',
+                {
+                  body: {
+                    profile_id: profile.id,
+                    stars_amount: starsAmount,
+                    telegram_payment_id: paymentId,
+                  },
+                }
+              );
+
+              if (confirmError) {
+                console.error('Confirm error:', confirmError);
+                toast.error('Payment received but failed to credit. Contact support.');
+              } else {
+                hapticFeedback('success');
+                toast.success(`${confirmData?.crystals_credited || starsAmount * (settings?.exchange_rate || 10)} crystals added!`);
+                await refetchProfile();
+              }
+              resolve(!confirmError);
             } else if (status === 'cancelled') {
               toast.info('Payment cancelled');
               resolve(false);
@@ -129,12 +134,28 @@ export const useTelegramStars = () => {
           });
         });
       } else {
-        // Simulation for development
-        await recordStarDeposit(starsAmount, 'sim_' + Date.now());
-        hapticFeedback('success');
-        toast.success(`${starsAmount} stars deposited! (Demo mode)`);
+        // Demo mode for development outside Telegram
+        const paymentId = `demo_${Date.now()}_${starsAmount}`;
+        const { data: confirmData, error: confirmError } = await supabase.functions.invoke(
+          'confirm-stars-payment',
+          {
+            body: {
+              profile_id: profile.id,
+              stars_amount: starsAmount,
+              telegram_payment_id: paymentId,
+            },
+          }
+        );
+
+        if (confirmError) {
+          toast.error('Failed to process demo payment');
+        } else {
+          hapticFeedback('success');
+          toast.success(`${confirmData?.crystals_credited} crystals added! (Demo)`);
+          await refetchProfile();
+        }
         setIsProcessing(false);
-        return true;
+        return !confirmError;
       }
     } catch (error) {
       console.error('Error purchasing stars:', error);
@@ -142,112 +163,15 @@ export const useTelegramStars = () => {
       setIsProcessing(false);
       return false;
     }
-  }, [profile?.id, settings, isTelegram, hapticFeedback]);
-
-  // Record star deposit in database
-  const recordStarDeposit = useCallback(async (starsAmount: number, paymentId: string): Promise<boolean> => {
-    if (!profile?.id) return false;
-
-    try {
-      const crystalsToCredit = Math.floor(starsAmount * (settings?.exchange_rate || 10));
-
-      const { error } = await supabase
-        .from('telegram_star_deposits')
-        .insert({
-          profile_id: profile.id,
-          telegram_payment_id: paymentId,
-          stars_amount: starsAmount,
-          crystals_credited: crystalsToCredit,
-          status: 'completed',
-          confirmed_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-
-      // Update user's crystals
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ crystals: (profile.crystals || 0) + crystalsToCredit })
-        .eq('id', profile.id);
-
-      if (updateError) throw updateError;
-
-      await refetchProfile();
-      return true;
-    } catch (error) {
-      console.error('Error recording star deposit:', error);
-      return false;
-    }
-  }, [profile?.id, profile?.crystals, settings, refetchProfile]);
-
-  // Send a gift to another user
-  const sendGift = useCallback(async (
-    recipientTelegramId: number,
-    giftId: string,
-    message?: string
-  ): Promise<boolean> => {
-    if (!profile?.id) {
-      toast.error('Please log in first');
-      return false;
-    }
-
-    if (!settings?.gift_enabled) {
-      toast.error('Gifts are currently disabled');
-      return false;
-    }
-
-    const gift = TELEGRAM_GIFTS.find(g => g.id === giftId);
-    if (!gift) {
-      toast.error('Invalid gift');
-      return false;
-    }
-
-    setIsProcessing(true);
-
-    try {
-      // In real implementation, this would call Bot API to send gift
-      // For now, we record the intent
-      const { error } = await supabase
-        .from('telegram_gifts')
-        .insert({
-          sender_profile_id: profile.id,
-          recipient_telegram_id: recipientTelegramId,
-          gift_id: giftId,
-          stars_cost: gift.stars_cost,
-          message: message || null,
-          status: 'pending',
-        });
-
-      if (error) throw error;
-
-      hapticFeedback('success');
-      toast.success(`${gift.emoji} ${gift.name} sent successfully!`);
-      return true;
-    } catch (error) {
-      console.error('Error sending gift:', error);
-      toast.error('Failed to send gift');
-      return false;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [profile?.id, settings, hapticFeedback]);
+  }, [profile?.id, settings, isTelegram, hapticFeedback, refetchProfile]);
 
   return {
-    // Settings
     settings,
     isLoading,
-    
-    // State
     isProcessing,
     supportsPayments: supportsPayments(),
     isTelegram,
-    
-    // Available gifts
-    availableGifts: TELEGRAM_GIFTS,
-    
-    // Actions
     purchaseStars,
-    sendGift,
     refetch: fetchSettings,
   };
 };
